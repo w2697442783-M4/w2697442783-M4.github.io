@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>小六壬 · 掌诀</title>
+<style>
+  :root{
+    --paper:#f6efdd; --paper2:#efe6cf; --ink:#2e2a23; --ink-soft:#5c5546;
+    --cinnabar:#b13a2e; --cinnabar-dark:#8f2b21; --gold:#a67c3d; --line:#d8cbab;
+    --card:#fbf7ec;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{font-size:16px}
+  body{
+    font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    color:var(--ink);
+    background:
+      radial-gradient(ellipse 80% 50% at 20% -5%, rgba(166,124,61,.10), transparent 60%),
+      radial-gradient(ellipse 70% 45% at 95% 110%, rgba(177,58,46,.06), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(46,42,35,.014) 0 2px, transparent 2px 5px),
+      linear-gradient(160deg, #f8f2e2, var(--paper) 40%, var(--paper2));
+    min-height:100vh; padding:0 0 48px;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:0 18px}
+  header{text-align:center;padding:30px 0 6px;position:relative}
+  .seal{
+    position:absolute;top:26px;right:20px;width:52px;height:52px;
+    background:var(--cinnabar);color:#f8efdd;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;line-height:1.25;letter-spacing:2px;padding:4px;
+    transform:rotate(4deg);box-shadow:0 2px 8px rgba(143,43,33,.35);
+    font-family:"Noto Serif SC","STKaiti","KaiTi",serif;
+  }
+  h1{font-size:40px;letter-spacing:14px;text-indent:14px;font-weight:700}
+  .subtitle{color:var(--ink-soft);letter-spacing:4px;font-size:13px;margin-top:8px}
+  .rule{display:flex;align-items:center;gap:10px;margin:16px 4px 4px;color:var(--gold)}
+  .rule::before,.rule::after{content:"";flex:1;border-top:1px solid var(--line)}
+  .rule span{font-size:11px;letter-spacing:3px}
+  nav.tabs{display:flex;gap:8px;justify-content:center;margin:14px 0 18px}
+  nav.tabs button{
+    font-family:inherit;font-size:15px;letter-spacing:3px;padding:8px 20px;
+    background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;cursor:pointer;
+  }
+  nav.tabs button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .modes{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+  .modes button{
+    font-family:inherit;font-size:14px;letter-spacing:2px;padding:6px 16px;border-radius:4px;
+    background:transparent;border:1px solid transparent;color:var(--ink-soft);cursor:pointer;
+  }
+  .modes button.on{color:var(--cinnabar);border-color:var(--cinnabar);background:rgba(177,58,46,.05)}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:20px 18px;box-shadow:0 3px 14px rgba(92,85,70,.08);margin-bottom:16px;
+  }
+  label.flabel{display:block;font-size:13px;letter-spacing:2px;color:var(--ink-soft);margin:0 0 8px 2px}
+  input[type=text],input[type=number],select{
+    width:100%;font-family:inherit;font-size:17px;color:var(--ink);
+    background:#fffdf6;border:1px solid var(--line);border-radius:8px;padding:12px 14px;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--gold)}
+  .nums{display:flex;gap:10px}
+  .nums .nbox{flex:1;text-align:center}
+  .nums input{text-align:center;font-size:24px;font-weight:700;padding:10px 4px}
+  .nums .cap{font-size:12px;color:var(--ink-soft);letter-spacing:2px;margin-top:6px}
+  .row3{display:flex;gap:10px}
+  .row3>div{flex:1}
+  .btns{display:flex;gap:10px;margin-top:18px}
+  button.act{
+    flex:1;font-family:inherit;font-size:17px;letter-spacing:4px;padding:13px 0;border-radius:8px;cursor:pointer;border:1px solid var(--ink);
+    background:transparent;color:var(--ink);
+  }
+  button.act.primary{background:var(--cinnabar);border-color:var(--cinnabar-dark);color:#fdf6e9;box-shadow:0 3px 10px rgba(143,43,33,.3)}
+  button.act:active{transform:scale(.98)}
+  button.act:disabled{opacity:.45}
+  /* 掌诀环图 */
+  .ringbox{position:relative;width:300px;height:300px;margin:6px auto 2px}
+  .ring-svg{position:absolute;inset:0}
+  .node{
+    position:absolute;width:74px;height:74px;margin:-37px 0 0 -37px;border-radius:50%;
+    border:1.5px solid var(--ink-soft);background:#fffdf6;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    transition:all .25s ease;z-index:2;
+  }
+  .node .nm{font-size:19px;font-weight:700;letter-spacing:2px}
+  .node .wx{font-size:10px;color:var(--ink-soft);letter-spacing:1px;margin-top:1px}
+  .node.hit{border-color:var(--gold);background:#f3e5c3;transform:scale(1.12)}
+  .node.final{border-color:var(--cinnabar-dark);background:var(--cinnabar);color:#fdf6e9;transform:scale(1.18);box-shadow:0 4px 16px rgba(143,43,33,.4)}
+  .node.final .wx{color:#f3d9c8}
+  .ring-center{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--ink-soft);z-index:1;
+  }
+  .ring-center .big{font-size:26px;color:var(--ink);letter-spacing:4px}
+  .ring-center .small{font-size:11px;letter-spacing:2px;margin-top:4px}
+  .steps-line{text-align:center;color:var(--ink-soft);font-size:14px;letter-spacing:1px;min-height:22px;margin-top:8px}
+  .steps-line b{color:var(--cinnabar)}
+  /* 结果 */
+  #result{display:none}
+  .res-head{text-align:center;padding:6px 0 2px}
+  .res-palace{font-size:44px;font-weight:700;letter-spacing:10px;text-indent:10px;color:var(--cinnabar)}
+  .res-tags{margin-top:6px;font-size:13px;color:var(--ink-soft);letter-spacing:2px}
+  .res-tags .luck{display:inline-block;padding:1px 10px;border-radius:999px;border:1px solid var(--gold);color:var(--gold);margin-right:6px}
+  .res-tags .luck.bad{border-color:var(--cinnabar);color:var(--cinnabar)}
+  .verse{
+    margin:16px auto 4px;max-width:340px;text-align:center;font-size:16.5px;line-height:2.05;letter-spacing:1px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;
+  }
+  .kw{text-align:center;color:var(--ink-soft);font-size:14px;letter-spacing:2px;margin-top:10px}
+  .cats{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cat{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fffdf6}
+  .cat h4{font-size:13px;letter-spacing:3px;color:var(--cinnabar);margin-bottom:5px;font-weight:700}
+  .cat p{font-size:13.5px;line-height:1.65;color:var(--ink)}
+  .path-note{font-size:13px;color:var(--ink-soft);text-align:center;margin-top:14px;letter-spacing:1px;line-height:1.8}
+  /* 记录 */
+  .hist-item{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fffdf6;margin-bottom:10px;cursor:pointer}
+  .hist-item .t{font-size:12px;color:var(--ink-soft);letter-spacing:1px}
+  .hist-item .q{font-size:15px;margin:3px 0}
+  .hist-item .r{font-size:13px;color:var(--ink-soft)}
+  .hist-item .r b{color:var(--cinnabar);font-size:15px}
+  .hist-item .del{float:right;color:var(--cinnabar);font-size:12px;border:1px solid var(--line);background:none;border-radius:4px;padding:2px 8px;font-family:inherit;cursor:pointer}
+  .empty{text-align:center;color:var(--ink-soft);padding:26px 0;font-size:14px;letter-spacing:2px}
+  /* 速查 */
+  .pal-card{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:16px 18px;margin-bottom:12px}
+  .pal-card h3{font-size:22px;letter-spacing:4px}
+  .pal-card h3 .tag{font-size:12px;letter-spacing:2px;color:var(--gold);border:1px solid var(--gold);border-radius:999px;padding:1px 9px;margin-left:8px;vertical-align:middle}
+  .pal-card h3 .tag.bad{color:var(--cinnabar);border-color:var(--cinnabar)}
+  .pal-card .v{font-size:14.5px;line-height:1.95;margin-top:8px;color:var(--ink)}
+  .pal-card .k{font-size:13px;color:var(--ink-soft);margin-top:6px;letter-spacing:1px}
+  .howto{font-size:14px;line-height:2;color:var(--ink)}
+  .howto b{color:var(--cinnabar)}
+  footer{text-align:center;color:#a2967c;font-size:12px;letter-spacing:2px;margin-top:26px;line-height:2}
+  .hidden{display:none!important}
+  /* 大白话结论 */
+  .plain{
+    margin:16px 0 4px;border-left:4px solid var(--cinnabar);background:rgba(177,58,46,.05);
+    border-radius:0 8px 8px 0;padding:14px 16px;
+  }
+  .plain .pq{font-size:13.5px;color:var(--ink-soft);letter-spacing:1px;margin-bottom:7px;line-height:1.7}
+  .plain .pa{font-size:18.5px;line-height:1.75;font-weight:700;letter-spacing:.5px}
+  .plain .pall{font-size:14px;line-height:1.75;color:var(--ink-soft);margin-top:9px}
+  .plain .pall b{color:var(--ink)}
+  .cats-title{font-size:13px;letter-spacing:3px;color:var(--ink-soft);margin:18px 0 10px;text-align:center}
+  .verse-box{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+  .verse-title{font-size:13px;letter-spacing:3px;color:var(--ink-soft);text-align:center}
+  .verse-box .verse{border:none;margin-top:4px;padding-bottom:2px}
+  .hint{font-size:12.5px;color:var(--ink-soft);margin-top:9px;line-height:1.75;letter-spacing:.5px}
+  /* 三宫连读 */
+  .chain{margin-top:16px;border:1px solid var(--line);border-radius:8px;background:#fffdf6;padding:14px 16px}
+  .chain .crow{font-size:14.5px;line-height:1.85;margin-top:6px}
+  .chain .crow:first-child{margin-top:0}
+  .chain .cname{display:inline-block;min-width:74px;font-weight:700;color:var(--cinnabar);letter-spacing:1px}
+  .chain .ctrend{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:15px;line-height:1.8}
+  .chain .ctrend b{color:var(--cinnabar)}
+  .chain .cyq{margin-top:8px;font-size:14px;line-height:1.85;color:var(--ink)}
+  .chain .cyq .ylab{font-weight:700;color:var(--gold);letter-spacing:1px}
+  .note{font-size:14px;line-height:1.85;color:var(--ink-soft);margin-top:7px}
+  .note .nc{color:var(--ink);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="seal">掐指<br>一算</div>
+    <h1>小六壬</h1>
+    <div class="subtitle">大安 · 留连 · 速喜 · 赤口 · 小吉 · 空亡</div>
+    <div class="rule"><span>掌 诀</span></div>
+  </header>
+
+  <nav class="tabs">
+    <button id="tab-cast" class="on" onclick="showTab('cast')">起卦</button>
+    <button id="tab-hist" onclick="showTab('hist')">记录</button>
+    <button id="tab-ref" onclick="showTab('ref')">速查</button>
+  </nav>
+
+  <!-- 起卦 -->
+  <section id="view-cast">
+    <div class="modes">
+      <button id="mode-num" class="on" onclick="setMode('num')">三数起卦</button>
+      <button id="mode-time" onclick="setMode('time')">时间起卦</button>
+    </div>
+
+    <div class="card">
+      <label class="flabel">所问之事（可空）</label>
+      <input type="text" id="question" placeholder="心里默念，一事一占" maxlength="40">
+      <div id="num-inputs" style="margin-top:16px">
+        <label class="flabel">报三个数</label>
+        <div class="nums">
+          <div class="nbox"><input type="number" id="n1" min="1" max="9999" inputmode="numeric" placeholder="·"><div class="cap">其一</div></div>
+          <div class="nbox"><input type="number" id="n2" min="1" max="9999" inputmode="numeric" placeholder="·"><div class="cap">其二</div></div>
+          <div class="nbox"><input type="number" id="n3" min="1" max="9999" inputmode="numeric" placeholder="·"><div class="cap">其三</div></div>
+        </div>
+      </div>
+      <div id="time-inputs" class="hidden" style="margin-top:16px">
+        <label class="flabel">农历月 · 日 · 时辰</label>
+        <div class="row3">
+          <div><select id="lmonth"></select></div>
+          <div><select id="lday"></select></div>
+          <div><select id="lhour"></select></div>
+        </div>
+        <div class="hint">时辰、农历都以<b>你所在地</b>的时间为准——你在莫斯科，就按莫斯科的钟点和当地今天的农历日期，不用换算成国内时间。时辰已按你手机时间预选好。</div>
+      </div>
+      <div class="btns">
+        <button class="act" id="btn-random" onclick="randomNums()">随机抽数</button>
+        <button class="act primary" id="btn-cast" onclick="doCast()">起 卦</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ringbox" id="ringbox">
+        <svg class="ring-svg" viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="112" fill="none" stroke="#d8cbab" stroke-width="1" stroke-dasharray="3 5"/>
+        </svg>
+        <div class="ring-center"><div class="big" id="center-word">静心</div><div class="small" id="center-sub">默念所问 · 然后起卦</div></div>
+      </div>
+      <div class="steps-line" id="steps-line">六宫环列 · 大安起数</div>
+    </div>
+
+    <div class="card" id="result">
+      <div class="res-head">
+        <div class="res-palace" id="res-palace"></div>
+        <div class="res-tags" id="res-tags"></div>
+      </div>
+      <div class="plain" id="res-plain"></div>
+      <div class="kw" id="res-kw"></div>
+      <div class="cats-title">— 三 宫 连 读 · 推 演 —</div>
+      <div class="chain" id="res-chain"></div>
+      <div class="cats-title">— 分 项 细 看 —</div>
+      <div class="cats" id="res-cats"></div>
+      <div class="verse-box">
+        <div class="verse-title">— 传 统 断 辞 —</div>
+        <div class="verse" id="res-verse"></div>
+        <div id="res-notes"></div>
+      </div>
+      <div class="path-note" id="res-path"></div>
+    </div>
+  </section>
+
+  <!-- 记录 -->
+  <section id="view-hist" class="hidden">
+    <div id="hist-list"></div>
+    <div class="btns"><button class="act" onclick="clearHistory()">清空全部记录</button></div>
+  </section>
+
+  <!-- 速查 -->
+  <section id="view-ref" class="hidden">
+    <div class="card howto">
+      <b>三数法</b>：默念所问，报三个数。第一数从大安起数（当前宫作一）落一宫；第二数从落宫续数落二宫；第三数再续数，落宫即为终宫，以终宫断事，前两宫为过程。<br>
+      <b>时间法</b>：以农历月、日、时起卦。月从大安起正月顺数落月宫；日从月宫起初一顺数落日宫；时从日宫起子时顺数，落宫即是。<br>
+      数大者以除六取余计步，余零作六。
+    </div>
+    <div id="ref-list"></div>
+  </section>
+
+  <footer>小六壬 · 诸葛马前课<br>传统文化 · 娱乐参考 · 事在人为</footer>
+</div>
+<script>
+const PALACES = [
+ { name:"大安", wx:"木", shen:"青龙", luck:"吉", kw:"安定 · 守成 · 事事昌",
+   verse:"大安事事昌，求谋在东方。失物去不远，宅舍保安康。行人身未动，病者主无妨。将军回田野，仔细与推详。",
+   cats:{"求财":"稳中有利，正财渐入，宜守成，不宜冒进投机。","事业":"安稳推进，谋事可成；宜静不宜躁，按部就班者胜。","出行":"行人身未动，出行平安，按原计划走即可。","感情":"和睦安稳，以诚相待则久；忌无端猜疑。","失物":"去不远，多在东方或原处附近，尽快回去找。","健康":"主无妨，静养即愈，忌劳心熬夜。"}},
+ { name:"留连", wx:"水", shen:"玄武", luck:"滞", kw:"拖延 · 纠缠 · 宜缓",
+   verse:"留连事难成，求谋日未明。官事只宜缓，去者来回程。失物南方去，急讨方称心。更须防口舌，人事且平平。",
+   cats:{"求财":"财路未明，进账迟滞；忌借贷担保，缓图为上。","事业":"事难成、宜缓，文书流程多拖延，耐住性子等转机。","出行":"去者回程反复，行程易生变，能改期则改期。","感情":"纠缠拖延，暗生口舌；宜冷处理，忌逼问。","失物":"在南方，急讨可回；拖久则难寻。","健康":"病势缠绵，宜缓治调理，防反复。"}},
+ { name:"速喜", wx:"火", shen:"朱雀", luck:"吉", kw:"喜讯 · 迅速 · 贵人",
+   verse:"速喜喜来临，求财向南行。失物申午未，逢人路上寻。官事有福德，病者无祸侵。田家财畜旺，都来施君身。",
+   cats:{"求财":"喜来临，向南行求财有获，进账快，可主动出击。","事业":"速有喜讯，谋事宜快不宜慢，消息即机会。","出行":"出行顺利，路上逢人相助，宜速行速决。","感情":"喜事临近，表白、相亲、推进关系皆宜。","失物":"多在申、午、未方或路上，逢人打听，速寻可回。","健康":"无祸侵，小恙即愈，康复比预期快。"}},
+ { name:"赤口", wx:"金", shen:"白虎", luck:"凶", kw:"口舌 · 官非 · 慎言",
+   verse:"赤口主口舌，官非切要防。失物急去寻，行人有惊慌。鸡犬多作怪，病者出西方。更须防诅咒，恐怕染瘟疫。",
+   cats:{"求财":"防口舌破财，忌口头约定与合伙，钱财落纸为安。","事业":"易生官非争执，合同字据须谨慎，忍一时之气。","出行":"行人有惊慌，出行防意外与口角，能避则避。","感情":"易争吵，防他人传话挑拨；少言为贵，先冷静。","失物":"急去寻或可得，迟则难回，防顺手牵羊。","健康":"宜速就医，防血光与口腔之疾，莫拖延。"}},
+ { name:"小吉", wx:"水", shen:"六合", luck:"吉", kw:"和合 · 小成 · 贵人助",
+   verse:"小吉最吉昌，路上好商量。阴人来报喜，失物在坤方。行人立便至，交易甚是强。凡事皆和合，病者事无妨。",
+   cats:{"求财":"小利可成，交易甚强，和气生财，合作分利皆可。","事业":"凡事好商量，有贵人暗中相助，合作可成。","出行":"行人立便至，出行遇助，一路顺遂。","感情":"皆和合，有喜讯，关系宜再进一步。","失物":"在坤方（西南），或有人告知、送回。","健康":"事无妨，遇良医，调养即安。"}},
+ { name:"空亡", wx:"土", shen:"勾陈", luck:"凶", kw:"落空 · 虚耗 · 宜止",
+   verse:"空亡事不长，阴人小乘张。求财无利益，行人有灾殃。失物寻不见，官事有刑伤。病人逢暗鬼，起课仔细防。",
+   cats:{"求财":"无利益，防空头承诺与画饼，忌投资借贷。","事业":"落空之象，计划易黄、音信无着；宜止损，勿强推。","出行":"行人有灾殃，出行多空转，宜取消或改期。","感情":"虚情或敷衍，音信稀薄；宜看清，莫自欺。","失物":"寻不见，多半已失，不必强求。","健康":"防隐情暗疾，宜做详细检查，查明病因。"}}
+];
+const CATS = ["求财","事业","学业","出行","感情","失物","健康"];
+/* 大白话：总评 + 按问题类别的针对性回答（结论 + 展开 + 建议） */
+const EXTRA = {
+"大安":{ plain:"这事稳，能成。不用急、不用折腾，按原来的步子慢慢走就行。这一卦赢在一个『稳』字——越沉得住气、越不乱改计划，结果越好。",
+  ans:{"求财":"钱这块稳，能挣到，是细水长流的那种稳。断辞说『求谋在东方』，真要跑业务、谈单子，往东边使劲更顺。建议：守住正财，别看别人赚快钱就眼红去投机，这卦最忌贪快。","事业":"工作上求稳就是赢。项目能按计划推进，上面对你也没什么意见。建议：别瞎跳槽、别临时推翻方案，把手头的事做扎实，这段时间拼的是稳。","学业":"学业运稳。考试基本就是你平时的水平，不会大起大落。建议：考前别突然换复习路子、别熬夜突击，按原来的节奏来，能过。","出行":"放心去。断辞说行人平安、宅舍安康，路上不会出什么幺蛾子。建议：按原计划走就行，不用改签，也不用太担心家里。","感情":"感情稳，没大风浪。两个人都踏实的话，这段关系能走远。建议：别作、别试探、别翻旧账，平平淡淡在这一卦里就是上签。","失物":"没丢远。断辞明说『失物去不远』，多半还在你的活动范围里，往东边找、回原地仔细翻。建议：趁记忆还新鲜马上找，八成能找回来。","健康":"没大事。断辞说『病者主无妨』，多半是虚惊一场或者小毛病。建议：好好休息、别熬夜硬撑，养几天就缓过来了；实在不放心，再去查一下也行。"}},
+"留连":{ plain:"这事卡住了，暂时推不动。不是你不行，是时候未到，流程和人事都在拖。建议先放一放、缓一缓，过阵子再推；硬来只会更乱，还容易吵架。",
+  ans:{"求财":"钱会拖。断辞说『求谋日未明』，意思是这笔钱短期内见不到影，可能对方拖着、可能流程卡着。建议：别把钱借出去，也别指望这笔钱救急，先按没有这笔钱来过日子。","事业":"推进会卡壳。事情难成，多半卡在流程、审批或者别人身上，不是你能力的问题。建议：急也没用，先把自己能控的部分做完、留好记录，等风口过了再推。","学业":"进度会拖。可能复习被杂事缠住，也可能成绩、出结果比别人晚。建议：别因为拖就摆烂，这卦坏在慢、不坏在结果，耐心磨完能过关。","出行":"行程容易出岔子。断辞说『去者来回程』，就是去了还得折返，来回折腾，延误、改签都常见。建议：能推迟就推迟；非去不可，就多留缓冲时间，重要东西随身带。","感情":"黏黏糊糊拖着。断辞还提醒要防口舌——最怕冷战、猜忌、翻来覆去说不清。建议：逼问没有用，先各自冷静，过阵子找个心平气和的时候，一次谈清。","失物":"往南边找，而且要快。断辞说『失物南方去，急讨方称心』，东西往南边去了，你抓紧去讨、去找还有戏。建议：今天就动，拖得越久越没希望。","健康":"好得慢，容易反复。这种多半是慢性子的毛病，跟这一卦的气质一样——拖。建议：老老实实按疗程调理，别指望三天见效，也别刚好一点就停药。"}},
+"速喜":{ plain:"好事要来，而且来得快。这一卦贵在一个『快』字：消息快、进展快、见效也快。别犹豫，趁热打铁、该出手就出手，拖久了热度就凉了。",
+  ans:{"求财":"财运不错，而且来钱快。断辞说『求财向南行』，南边的机会、客户更旺你。建议：主动出击，该谈的谈、该卖的卖，别坐着等——热度就这一阵子。","事业":"很快有消息，大概率是好消息。速喜主一个『快』字：回复快、推进快、拍板也快。建议：该投的投、该汇报的汇报，这几天手脚麻利点，别错过窗口。","学业":"考试运不错。可能超常发挥，也可能很快收到过关、录取的好消息。建议：临场别怯，平时会的都写上，这一卦向着敢答的人。","出行":"一路顺。断辞说『逢人路上寻』，路上容易遇到热心人，有事也有人帮。建议：适合说走就走，行程不用改，带好东西出发就行。","感情":"有戏，而且进展会很快！喜事临近的卦，该表白表白、该见面见面。建议：别端着、别玩欲擒故纵，这卦讲趁热打铁，凉了就没这个店了。","失物":"快去找，有戏。断辞说失物多在路上，向人打听着能寻回来，方位偏正南、西南。建议：沿着你走过的路线往回找，问问沿途的人，别闷头瞎翻。","健康":"恢复得比想的快。断辞说『病者无祸侵』，小毛病很快过去。建议：放宽心，该吃药吃药、该休息休息，别自己上网瞎查吓自己。"}},
+"赤口":{ plain:"这事最容易坏在嘴上。口舌、争执、官非是这一卦的主题，处理不好，小事会变大事。建议：少说话、多留证据，能躲的冲突别往上凑，忍住就是赢。",
+  ans:{"求财":"钱上容易出是非。断辞说『官非切要防』，口头说的不算数，最容易因为分钱、借钱、合伙吵起来，甚至被坑。建议：白纸黑字、留好凭证，亲兄弟明算账。","事业":"容易跟人起冲突：同事、领导、客户都有可能，一句话不对付就炸。建议：消息想好了再发，重要的事落成文字，别在气头上回复；能忍的一时之气，忍了就是赢。","学业":"小心两件事：一是粗心丢分，二是跟人争论惹是非，跟同学、甚至跟老师顶嘴都吃亏。建议：答题稳一点、交卷前检查一遍，嘴上更要稳，防小人传话。","出行":"路上多加小心。断辞说『行人有惊慌』，容易遇上惊吓、争执、丢东西这类事。建议：看好证件和行李，别跟陌生人起冲突；不是非去不可的话，可以考虑改期。","感情":"最容易吵架的一卦。一句话不对付就炸，还要防外人传话挑拨。建议：先管住嘴，别在气头上说分手这种话；冷静一天再谈，能过去。","失物":"赶紧找，立刻找。断辞说『失物急去寻』，晚了就真没了，也不排除被人顺手拿了。建议：第一时间回原地、问在场的人，同时做好找不回的准备，该挂失先挂失。","健康":"别拖。赤口带白虎，最怕外伤、血光，还有口腔、嗓子的问题。建议：不舒服就去看医生，别自己扛；这段时间也少做危险系数高的事。"}},
+"小吉":{ plain:"小有收获的一卦。大富大贵谈不上，但顺顺利利、和和气气，还容易有人帮你。适合谈合作、求人办事、把小事办成——别贪大，小成也是成。",
+  ans:{"求财":"能挣点小财，买卖特别好谈。断辞说『交易甚是强』，这回和气生财是真的。建议：适合谈合作、谈价格，姿态放软点，合作比单干强，小利也是利。","事业":"适合谈事、找帮手。断辞说『路上好商量』，卡住的事坐下来谈就能松动，还容易有贵人拉你一把。建议：主动约人、开口求助，别自己硬扛。","学业":"有贵人运。老师、同学、学长学姐都能帮上忙，卡住的题、卡住的流程，问一句就通。建议：别闷头死磕，张口问，这次过关希望很大。","出行":"顺顺当当。断辞说『行人立便至』，要等的人马上到，自己出门也一路有人接应。建议：按计划走就行，可能还有意外的小收获。","感情":"甜。这一卦主和合，两个人合拍，朋友还乐意助攻。建议：适合把关系再往前推一步——表白、见家长、定下来，都顺这个势。","失物":"往西南边找。断辞说『失物在坤方』，坤方就是西南；也有可能有人捡到了，会送回来或者告诉你。建议：先朝西南方向认真找一圈，再问问朋友群、同事群。","健康":"没大问题。断辞说『病者事无妨』，还容易遇到靠谱的医生。建议：配合治疗、按时吃药就行，别过度焦虑。"}},
+"空亡":{ plain:"这事多半要落空。听着像那么回事，其实根基虚、承诺飘，落空的概率很大。建议：及时收手、及时止损，比硬撑着强；真想要，等下一卦再问。",
+  ans:{"求财":"这笔钱多半没戏。断辞说『求财无利益』，对方画的饼、许的诺，落空的概率很大。建议：别投、别借、别垫钱，捂紧钱包就是赢；已经投了的，想办法尽早抽身。","事业":"落空之象。项目可能黄了，机会可能是画饼，等的人音信全无。建议：别冲动辞职、别重注押上，留好后路，骑驴找马，等下一波再说。","学业":"状态容易飘。这一卦最怕侥幸，别指望蒙混过关——不会就是不会。建议：踏踏实实把漏洞补上，能补多少是多少；申请类的事也要防对方没下文，自己多跟进。","出行":"多半白跑。断辞说『行人有灾殃』，去了也可能办不成事，还容易出状况。建议：能不去就别去；非去不可，就降低预期、做好两手准备。","感情":"对方多半没你想的那么上心。可能是敷衍，也可能是一场空欢喜，音信越来越稀就是信号。建议：看清了早点抽身，别一个人演独角戏，耗下去伤的是你自己。","失物":"多半找不回来了。断辞说『失物寻不见』，别太执着。建议：该挂失挂失、该补办补办，把精力放在止损上，东西没了就没了吧。","健康":"别大意。断辞说『病人逢暗鬼』，意思是症状背后可能藏着看不见的原因。建议：去做一次详细检查，查清楚再说，别用一句『没事』安慰自己拖着。"}}
+};
+/* 断辞逐句白话释义（与课文四句一一对应） */
+const VERSE_NOTES = {
+"大安":["事情大体顺遂；要谋划的事，往东方去办更有利。","丢的东西没有走远；家里、住处都安稳。","要等的人还没动身；生病的人没有大碍。","典故句：连将军都解甲归田了——意思是宜静养守成，你细细体会。"],
+"留连":["事情难成，想谋的事短期内看不到眉目。","官司、麻烦事只能缓办；出门的人会来回折返。","丢的东西往南方去了，赶紧去讨、去找才合心意。","还要防着口舌是非；人事方面只能算平平无奇。"],
+"速喜":["喜事要来；求财往南方去更有利。","失物在申、午、未几个方位（正南、西南一带），在路上向人打听着找。","官事有福星护着；病人不会有大灾祸。","家业、财运都旺，好事会主动找到你头上。"],
+"赤口":["主口舌是非，官司、纠纷一定要防。","丢的东西要立刻去找；出门在外的人容易受惊吓、出状况。","家里容易有小怪事、小损耗；病人忌往西方去。","还要防着被人背后使坏、嚼舌根，恐怕惹上麻烦和病灾。"],
+"小吉":["这一宫最吉利，出门在外万事都好商量。","会有暗中帮你的人来报喜（多是女性贵人）；失物在坤方，就是西南方。","要等的人马上就到；做买卖、谈交易特别顺。","凡事都讲和合；病人没有什么大碍。"],
+"空亡":["事情长久不了、根基虚；防着身边有人趁虚而入、虚张声势。","求财没有利益；出门的人容易有灾祸。","丢的东西找不回来；官事容易招来刑伤、处罚。","病人怕有看不见的隐情；起这一卦，要格外仔细提防。"]
+};
+
+/* 三宫连读（推演层）：第一宫看起头、第二宫看过程、第三宫看结果 */
+const START_TXT = [
+ "起头稳。事情的根基和条件都不差，是个让人安心的开局。",
+ "起头就拖。一开始就有点黏糊，卡点出现得早。",
+ "起头快。事情来得突然，可能一下子就有了消息或机会。",
+ "起头带火。开局就容易跟人别扭，或者先冒出一个小麻烦。",
+ "起头小顺。开局不差，还容易有人顺手搭你一把。",
+ "起头虚。消息不实、计划没落地，开局先要核实真假。"
+];
+const MID_TXT = [
+ "过程平稳。中间没有什么大浪，按节奏推进就行。",
+ "过程拖延。中间会卡在等待、流程或某个人身上，这一段最熬人，熬过去就好一半。",
+ "过程加速。转机多半就出在这一步，好消息来得突然。",
+ "过程生波。中间容易吵一架或出个岔子，管住嘴、留好证据是正经事。",
+ "过程得助。中间会有人帮你说话、搭把手，僵局开始松动，能谈拢。",
+ "过程落空。中间会有一阵白忙活、或者等不到消息的阶段，别在这一步把自己耗干。"
+];
+const YINGQI = {
+"大安":"偏稳。不快不慢，按正常节奏走，大致数日到一两周内见分晓，急不得，也不用急。",
+"留连":"偏慢。拖是这一卦的常态，短则多等几日，长则小月余，别天天催，催也没用。",
+"速喜":"最快。当日到三日之内多半就有动静，记得抓紧跟进，别错过。",
+"赤口":"偏急。麻烦或消息来得突然，就在最近几日，提前防着点。",
+"小吉":"较快。数日之内能有小成，先把能定下来的定下来。",
+"空亡":"无期。多半等不到结果，或者等来的是落空的消息——别把宝押在时间上。"
+};
+const YIJI = {
+"大安":["守成、按计划推进","冒进、临时改主意"],
+"留连":["缓办、留有余地","催逼、把钱借出去"],
+"速喜":["速决、主动出击","犹豫、拖延观望"],
+"赤口":["忍让、留好凭证","争执、口头约定、冲动签字"],
+"小吉":["合作、开口求助","单干、端着不说"],
+"空亡":["止损、观望核实","投入、轻信承诺"]
+};
+function luckScore(idx){ const l = PALACES[idx].luck; return l==="吉" ? 1 : (l==="凶" ? -1 : 0); }
+function trendLabel(s, m, e){
+  if(s===m && m===e){
+    if(s>0) return "三宫同气，一路顺到底，难得的顺卦。";
+    if(s<0) return "三宫同气，低迷到底——这一卦是劝你避开的。";
+    return "三宫皆滞，拖就是这一卦的主题。";
+  }
+  if(e>s) return (m<=s) ? "先难后易：开头不顺，结局翻盘，就是大白话说的『熬出来了』。"
+                        : "渐入佳境：越走越顺，势头一直在往上走。";
+  if(e<s) return (m>=s) ? "先顺后险：前面越顺，结尾越要小心，别在最后阴沟里翻船。"
+                        : "一路走低：势头不对，越早做打算越好。";
+  return (m<e) ? "中间有波折：过程里受点罪，结果回到正轨。"
+               : "中间有高光：过程里藏着个好机会，结局回归平常——把中间那一下抓住。";
+}
+/* 问题类别识别：按具体程度排序，先具体后宽泛 */
+const CAT_KEYS = [
+ ["失物",["丢","不见了","失物","遗失","找不回","钥匙"]],
+ ["健康",["生病","健康","医院","体检","手术","恢复","医生","身体不舒服","疼"]],
+ ["感情",["男朋友","女朋友","对象","表白","分手","结婚","相亲","恋爱","老公","老婆","暗恋","喜欢的人","感情"]],
+ ["学业",["考试","期末","作业","论文","成绩","申请","答辩","课程","留学","老师","学校","补考"]],
+ ["求财",["钱","投资","股票","工资","借钱","赚钱","生意","买卖","价格","订单","房租","兼职","理财"]],
+ ["事业",["工作","面试","升职","项目","合作","公司","老板","客户","创业","开店","跳槽","offer"]],
+ ["出行",["旅游","机票","火车","飞机","回家","出差","搬家","旅行","出行","签证","路上"]]
+];
+function detectCategory(q){
+  if(!q) return null;
+  for(const [cat, keys] of CAT_KEYS){
+    for(const k of keys){ if(q.includes(k)) return cat; }
+  }
+  return null;
+}
+const HOURS = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+const LS_KEY = "xlr_history_v1";
+let mode = "num";
+let animating = false;
+
+/* ---------- 基础 UI ---------- */
+function showTab(t){
+  ["cast","hist","ref"].forEach(x=>{
+    document.getElementById("view-"+x).classList.toggle("hidden", x!==t);
+    document.getElementById("tab-"+x).classList.toggle("on", x===t);
+  });
+  if(t==="hist") renderHistory();
+}
+function setMode(m){
+  mode = m;
+  document.getElementById("mode-num").classList.toggle("on", m==="num");
+  document.getElementById("mode-time").classList.toggle("on", m==="time");
+  document.getElementById("num-inputs").classList.toggle("hidden", m!=="num");
+  document.getElementById("time-inputs").classList.toggle("hidden", m!=="time");
+  document.getElementById("btn-random").style.visibility = (m==="num") ? "visible" : "hidden";
+}
+function buildRing(){
+  const box = document.getElementById("ringbox");
+  PALACES.forEach((p,i)=>{
+    const ang = (-90 + i*60) * Math.PI/180;
+    const x = 150 + 112*Math.cos(ang), y = 150 + 112*Math.sin(ang);
+    const d = document.createElement("div");
+    d.className = "node"; d.id = "node-"+i;
+    d.style.left = x+"px"; d.style.top = y+"px";
+    d.innerHTML = '<div class="nm">'+p.name+'</div><div class="wx">'+p.wx+" · "+p.shen+'</div>';
+    box.appendChild(d);
+  });
+}
+function buildSelects(){
+  const lm = document.getElementById("lmonth"), ld = document.getElementById("lday"), lh = document.getElementById("lhour");
+  const MN = ["正","二","三","四","五","六","七","八","九","十","冬","腊"];
+  MN.forEach((m,i)=>{ const o=document.createElement("option"); o.value=i+1; o.textContent=m+"月"; lm.appendChild(o); });
+  for(let d=1; d<=30; d++){ const o=document.createElement("option"); o.value=d; o.textContent=d+"日"; ld.appendChild(o); }
+  HOURS.forEach((h,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=h+"时"; lh.appendChild(o); });
+  const now = new Date();
+  lh.value = Math.floor(((now.getHours()+1)%24)/2);
+}
+function buildRef(){
+  const list = document.getElementById("ref-list");
+  PALACES.forEach(p=>{
+    const bad = (p.luck==="凶");
+    const d = document.createElement("div");
+    d.className = "pal-card";
+    d.innerHTML = "<h3>"+p.name+'<span class="tag'+(bad?" bad":"")+'">'+p.luck+" · "+p.wx+" · "+p.shen+'</span></h3>'
+      + '<div class="v">'+p.verse+"</div>"
+      + '<div class="k">'+p.kw+"</div>";
+    list.appendChild(d);
+  });
+}
+
+/* ---------- 起卦算法：每段以当前宫作一顺数，落宫=(起点+数-1) mod 6 ---------- */
+function segSteps(n){ return (n - 1) % 6 + 1; }
+function computeCasts(counts){
+  let start = 0, seq = [], lands = [], segLens = [];
+  counts.forEach(n=>{
+    const s = segSteps(n);
+    segLens.push(s);
+    for(let i=0;i<s;i++) seq.push((start + i) % 6);
+    const land = (start + s - 1) % 6;
+    lands.push(land);
+    start = land;
+  });
+  return { seq, lands, segLens };
+}
+
+/* ---------- 起卦流程 ---------- */
+function randomNums(){
+  ["n1","n2","n3"].forEach(id=>{
+    document.getElementById(id).value = Math.floor(Math.random()*99)+1;
+  });
+}
+function readCounts(){
+  if(mode==="num"){
+    const vals = ["n1","n2","n3"].map(id=>parseInt(document.getElementById(id).value,10));
+    if(vals.some(v=>!Number.isInteger(v)||v<1||v>9999)){ alert("请报三个 1–9999 的整数，或点「随机抽数」。"); return null; }
+    return { counts: vals, label: "三数 " + vals.join(" · ") };
+  }
+  const m = parseInt(document.getElementById("lmonth").value,10);
+  const d = parseInt(document.getElementById("lday").value,10);
+  const h = parseInt(document.getElementById("lhour").value,10);
+  return { counts: [m, d, h+1], label: "时间 · 农历"+m+"月"+d+"日 "+HOURS[h]+"时" };
+}
+function doCast(){
+  if(animating) return;
+  const got = readCounts();
+  if(!got) return;
+  const q = document.getElementById("question").value.trim();
+  const r = computeCasts(got.counts);
+  animate(r, ()=>{
+    const finalIdx = r.lands[2];
+    showResult(finalIdx, r.lands, got.label, q);
+    saveHistory({ t: Date.now(), q, label: got.label, mode, final: finalIdx, lands: r.lands });
+  });
+}
+function animate(r, done){
+  animating = true;
+  const btn = document.getElementById("btn-cast");
+  btn.disabled = true;
+  document.getElementById("result").style.display = "none";
+  PALACES.forEach((_,i)=>document.getElementById("node-"+i).classList.remove("hit","final"));
+  const line = document.getElementById("steps-line");
+  const cw = document.getElementById("center-word"), cs = document.getElementById("center-sub");
+  const segEnd = []; { let a=0; r.segLens.forEach(s=>{ a+=s; segEnd.push(a-1); }); }
+  const segNames = ["第一数","第二数","第三数"];
+  if(mode==="time") segNames.splice(0,3,"月","日","时");
+  let i = 0, seg = 0;
+  cw.textContent = "起卦"; cs.textContent = segNames[0]+" · 数宫中";
+  line.innerHTML = "自<b>大安</b>起数……";
+  const timer = setInterval(()=>{
+    if(i>0) document.getElementById("node-"+r.seq[i-1]).classList.remove("hit");
+    if(i >= r.seq.length){
+      clearInterval(timer);
+      const f = document.getElementById("node-"+r.lands[2]);
+      f.classList.add("final");
+      cw.textContent = PALACES[r.lands[2]].name; cs.textContent = "终宫落定";
+      line.innerHTML = "终宫 <b>"+PALACES[r.lands[2]].name+"</b> · 断语如下";
+      animating = false; btn.disabled = false;
+      setTimeout(done, 450);
+      return;
+    }
+    const idx = r.seq[i];
+    document.getElementById("node-"+idx).classList.add("hit");
+    if(i === segEnd[seg]){
+      line.innerHTML = segNames[seg]+" 落 <b>"+PALACES[idx].name+"</b>"+(seg<2 ? " · 续数" : "");
+      if(seg<2){ seg++; cs.textContent = segNames[seg]+" · 数宫中"; }
+      i++;
+      return;
+    }
+    line.innerHTML = segNames[seg]+" · 数至 <b>"+PALACES[idx].name+"</b>";
+    i++;
+  }, 300);
+}
+function showResult(finalIdx, lands, label, q){
+  const p = PALACES[finalIdx];
+  const ex = EXTRA[p.name];
+  document.getElementById("res-palace").textContent = p.name;
+  const bad = (p.luck==="凶");
+  document.getElementById("res-tags").innerHTML =
+    '<span class="luck'+(bad?" bad":"")+'">'+p.luck+'</span>'
+    + "五行"+p.wx+" · "+p.shen;
+  const cat = detectCategory(q);
+  const plain = document.getElementById("res-plain");
+  if(q && cat){
+    plain.innerHTML = '<div class="pq">你问：'+escapeHtml(q)+'（按「'+cat+'」断）</div>'
+      + '<div class="pa">'+ex.ans[cat]+"</div>"
+      + '<div class="pall">总的来看：<b>'+ex.plain+"</b></div>";
+  } else if(q){
+    plain.innerHTML = '<div class="pq">你问：'+escapeHtml(q)+'</div>'
+      + '<div class="pa">'+ex.plain+"</div>"
+      + '<div class="pall">没认出具体是哪类事，下面「分项细看」里对号入座。</div>';
+  } else {
+    plain.innerHTML = '<div class="pq">大白话结论</div>'
+      + '<div class="pa">'+ex.plain+"</div>";
+  }
+  document.getElementById("res-verse").innerHTML = p.verse.replace(/。/g,"。<br>").replace(/<br>$/,"");
+  // 三宫连读（推演）
+  const [a, b, c] = lands;
+  const yj = YIJI[p.name];
+  let yq = YINGQI[p.name];
+  if(PALACES[b].name==="留连") yq += "（过程宫又是留连，中途还会再拖一截，时间再往后放。）";
+  if(PALACES[b].name==="速喜") yq += "（过程宫是速喜，中途会加速，可能比预期还早。）";
+  if(PALACES[b].name==="空亡") yq += "（过程宫是空亡，中途可能先空欢喜一场，别当真。）";
+  document.getElementById("res-chain").innerHTML =
+    '<div class="crow"><span class="cname">起头 · '+PALACES[a].name+'</span>'+START_TXT[a]+"</div>"
+    + '<div class="crow"><span class="cname">过程 · '+PALACES[b].name+'</span>'+MID_TXT[b]+"</div>"
+    + '<div class="crow"><span class="cname">结果 · '+PALACES[c].name+'</span>终宫落'+PALACES[c].name+"，主「"+PALACES[c].kw+"」，具体断法看上方结论。</div>"
+    + '<div class="ctrend">连起来看：<b>'+trendLabel(luckScore(a), luckScore(b), luckScore(c))+"</b></div>"
+    + '<div class="cyq"><span class="ylab">应期</span> '+yq+"</div>"
+    + '<div class="cyq"><span class="ylab">宜忌</span> 宜：'+yj[0]+" ｜ 忌："+yj[1]+"</div>";
+  const clauses = p.verse.split("。").filter(s=>s.trim());
+  document.getElementById("res-notes").innerHTML = clauses.map((c,i)=>
+    '<div class="note"><span class="nc">'+c+'。</span> —— '+VERSE_NOTES[p.name][i]+"</div>"
+  ).join("");
+  document.getElementById("res-kw").textContent = p.kw;
+  const cats = document.getElementById("res-cats");
+  cats.innerHTML = "";
+  CATS.forEach(c=>{
+    const d = document.createElement("div");
+    d.className = "cat";
+    if(cat && c===cat) d.style.borderColor = "var(--cinnabar)";
+    d.innerHTML = "<h4>"+c+"</h4><p>"+ex.ans[c]+"</p>";
+    cats.appendChild(d);
+  });
+  document.getElementById("res-path").innerHTML =
+    label + "<br>经行："+lands.map(i=>PALACES[i].name).join(" → ") + "（终宫）";
+  const res = document.getElementById("result");
+  res.style.display = "block";
+  res.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- 历史记录（LocalStorage） ---------- */
+function loadHistory(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY)) || []; }catch(e){ return []; }
+}
+function saveHistory(item){
+  const h = loadHistory();
+  h.unshift(item);
+  localStorage.setItem(LS_KEY, JSON.stringify(h.slice(0,100)));
+}
+function renderHistory(){
+  const list = document.getElementById("hist-list");
+  const h = loadHistory();
+  list.innerHTML = "";
+  if(!h.length){ list.innerHTML = '<div class="empty">尚无记录 · 起一卦试试</div>'; return; }
+  h.forEach((it,idx)=>{
+    const d = document.createElement("div");
+    d.className = "hist-item";
+    const dt = new Date(it.t);
+    const ts = dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0")
+      +" "+String(dt.getHours()).padStart(2,"0")+":"+String(dt.getMinutes()).padStart(2,"0");
+    d.innerHTML = '<button class="del" data-del="'+idx+'">删</button>'
+      + '<div class="t">'+ts+" · "+escapeHtml(it.label)+"</div>"
+      + (it.q ? '<div class="q">'+escapeHtml(it.q)+"</div>" : "")
+      + '<div class="r">终宫 <b>'+PALACES[it.final].name+"</b> · "+PALACES[it.final].kw+"</div>";
+    d.addEventListener("click", e=>{
+      if(e.target.dataset.del !== undefined) return;
+      showTab("cast");
+      PALACES.forEach((_,i)=>document.getElementById("node-"+i).classList.remove("hit","final"));
+      document.getElementById("node-"+it.final).classList.add("final");
+      document.getElementById("center-word").textContent = PALACES[it.final].name;
+      document.getElementById("center-sub").textContent = "历史记录";
+      document.getElementById("steps-line").innerHTML = "终宫 <b>"+PALACES[it.final].name+"</b>";
+      showResult(it.final, it.lands, it.label, it.q);
+    });
+    list.appendChild(d);
+  });
+  list.querySelectorAll("[data-del]").forEach(b=>{
+    b.addEventListener("click", e=>{
+      e.stopPropagation();
+      const h2 = loadHistory();
+      h2.splice(parseInt(b.dataset.del,10),1);
+      localStorage.setItem(LS_KEY, JSON.stringify(h2));
+      renderHistory();
+    });
+  });
+}
+function clearHistory(){
+  if(!loadHistory().length) return;
+  if(confirm("确定清空全部起卦记录？")){
+    localStorage.removeItem(LS_KEY);
+    renderHistory();
+  }
+}
+
+/* ---------- 初始化 ---------- */
+buildRing();
+buildSelects();
+buildRef();
+</script>
+</body>
+</html>

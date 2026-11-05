@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1f3a93">
+<title>俄语速译 · 实时翻译与要点总结</title>
+<style>
+  :root{
+    --ink:#17233b; --mut:#5b6b8c; --acc:#1f3a93; --acc2:#2f5fe0;
+    --bg:#eef1f8; --card:#ffffff; --line:#d9e0f0; --ok:#0a7a42; --warn:#b3540e;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.65;
+    padding:14px 12px 40px;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+  header{padding:8px 2px 4px}
+  h1{font-size:22px;margin:0 0 2px;letter-spacing:.5px}
+  .sub{color:var(--mut);font-size:13px;margin:0}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-top:12px; box-shadow:0 1px 3px rgba(23,35,59,.05);
+  }
+  .card h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .card h2 .tag{font-size:11px;color:#fff;background:var(--acc);border-radius:20px;padding:1px 8px;font-weight:600}
+  .card h2 .tag.gray{background:#8fa1c7}
+  textarea{
+    width:100%; min-height:150px; resize:vertical; border:1px solid var(--line);
+    border-radius:10px; padding:10px 12px; font-size:16px; line-height:1.6;
+    font-family:inherit; color:var(--ink); background:#fbfcff;
+  }
+  textarea:focus{outline:2px solid var(--acc2); outline-offset:0; background:#fff}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  button{
+    border:1px solid var(--acc); background:var(--acc); color:#fff; border-radius:10px;
+    padding:8px 14px; font-size:14px; cursor:pointer; font-family:inherit;
+  }
+  button.ghost{background:#fff;color:var(--acc)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.5}
+  select,input[type=email]{
+    border:1px solid var(--line); border-radius:8px; padding:7px 8px; font-size:14px; background:#fff; font-family:inherit;
+  }
+  .stats{color:var(--mut);font-size:12px;margin-left:auto}
+  .status{font-size:12px;margin-top:8px;min-height:16px;color:var(--mut)}
+  .status.ok{color:var(--ok)} .status.warn{color:var(--warn)}
+  .out{
+    white-space:pre-wrap; word-break:break-word; font-size:16px; min-height:60px;
+  }
+  .out:empty::before{content:"译文会实时出现在这里…";color:#9db0d4}
+  .sum-item{border-top:1px dashed var(--line);padding:9px 0}
+  .sum-item:first-of-type{border-top:none}
+  .sum-ru{font-size:15px}
+  .sum-zh{font-size:15px;color:var(--acc);margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{background:#e8eeff;color:var(--acc);border-radius:20px;padding:2px 10px;font-size:12px}
+  .hist-item{
+    border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-top:8px;
+    font-size:13px; color:var(--mut); cursor:pointer; background:#fbfcff;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .hist-item:active{background:#eef2ff}
+  .small{font-size:12px;color:var(--mut)}
+  details{margin-top:10px}
+  summary{font-size:13px;color:var(--acc);cursor:pointer}
+  .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:18px}
+  .spinner{display:inline-block;width:12px;height:12px;border:2px solid #c6d4f5;border-top-color:var(--acc);
+    border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>俄语速译 · 要点总结</h1>
+    <p class="sub">粘贴或输入俄语，自动翻译成中文，并提炼要点句。课堂、新闻、课文都能用。</p>
+  </header>
+
+  <section class="card">
+    <h2>原文（俄语） <span class="tag">输入</span></h2>
+    <textarea id="src" placeholder="Вставьте или введите русский текст…"></textarea>
+    <div class="row">
+      <button id="btnPaste" class="ghost" type="button">粘贴</button>
+      <button id="btnClear" class="ghost" type="button">清空</button>
+      <button id="btnGo" type="button">立即翻译</button>
+      <span class="stats" id="stats">0 字 · 0 句</span>
+    </div>
+    <div class="status" id="status"></div>
+    <details>
+      <summary>可选：填邮箱提高免费翻译额度（只存本机）</summary>
+      <div class="row">
+        <input type="email" id="email" placeholder="you@example.com" style="flex:1;min-width:180px">
+        <button id="btnMail" class="ghost" type="button">保存</button>
+      </div>
+      <p class="small">翻译走 MyMemory 免费接口，按你手机的网络地址计额度（每天约 1000 词，填邮箱后更高）。课堂短文本足够用；额度用完次日恢复。</p>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>中文译文 <span class="tag">实时</span></h2>
+    <div class="out" id="zhOut"></div>
+    <div class="row">
+      <button id="btnCopyZh" class="ghost" type="button">复制译文</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>要点总结 <span class="tag gray">本地提炼</span></h2>
+    <div class="row" style="margin-top:0">
+      <label class="small" for="sumN">提炼句数</label>
+      <select id="sumN">
+        <option value="3" selected>3 句</option>
+        <option value="5">5 句</option>
+        <option value="1">1 句</option>
+      </select>
+      <span class="small">先按词频与位置挑出原文关键句，再逐句翻译</span>
+    </div>
+    <div id="sumBox"><p class="small">输入原文后，这里会出现要点句（俄语原句 + 中文）。</p></div>
+    <div class="chips" id="kwBox"></div>
+    <div class="row">
+      <button id="btnCopySum" class="ghost" type="button">复制总结（中文）</button>
+    </div>
+  </section>
+
+  <section class="card" id="histCard" style="display:none">
+    <h2>历史记录 <span class="tag gray">本机</span></h2>
+    <div id="histBox"></div>
+    <div class="row"><button id="btnHistClear" class="ghost" type="button">清除历史</button></div>
+  </section>
+
+  <p class="foot">总结为本地算法提炼（不联网）；翻译需联网。结果供课堂速览，重要文本请再核对。</p>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const srcEl=$("src"), zhOut=$("zhOut"), statusEl=$("status"), statsEl=$("stats");
+
+/* ---------- 文本工具 ---------- */
+function splitSentences(text){
+  const clean = text.replace(/\s+/g," ").trim();
+  if(!clean) return [];
+  const parts = clean.match(/[^.!?…]+(?:[.!?…]+["»”)]*)?/g) || [clean];
+  return parts.map(s=>s.trim()).filter(s=>s.length>0);
+}
+function splitParagraphs(text){
+  return text.split(/\n{2,}/).map(p=>p.trim()).filter(Boolean);
+}
+function chunkText(text, max){
+  const sents = splitSentences(text);
+  const chunks=[]; let cur="";
+  for(const s of sents){
+    if((cur+" "+s).trim().length > max && cur){ chunks.push(cur.trim()); cur=s; }
+    else cur = (cur? cur+" ":"") + s;
+    while(cur.length > max){ chunks.push(cur.slice(0,max)); cur = cur.slice(max); }
+  }
+  if(cur.trim()) chunks.push(cur.trim());
+  return chunks.length? chunks : [text.slice(0,max)];
+}
+
+/* ---------- 抽取式总结（本地，不联网） ---------- */
+const STOP = new Set(("и в на с по для не что он она они мы вы это как а но из у к о об от до при за про над под без через после перед между также уже ещё только если когда где который которая которые которого которой этом эта этот эти того там здесь очень можно надо нужно было будет были есть быть стал более менее него неё них ему ей им нас вас мне тебе себе чем тем сам себя мой твой наш ваш свой один одна одни два три же бы ли ведь даже хотя потому поэтому тогда теперь всегда никогда иногда часто потом сначала наконец например конечно может могут должен должна должны между про перед через около возле среди против вместо кроме благодаря несмотря согласно").split(" "));
+function wordsOf(s){
+  return (s.toLowerCase().match(/[a-zа-яё]+/gi)||[]).filter(w=>w.length>2 && !STOP.has(w));
+}
+function summarize(text, n){
+  const sents = splitSentences(text);
+  if(!sents.length) return {items:[], keywords:[]};
+  const freq = new Map();
+  sents.forEach(s=>wordsOf(s).forEach(w=>freq.set(w,(freq.get(w)||0)+1)));
+  const keywords = [...freq.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
+  if(sents.length<=n) return {items:sents.map((s,i)=>({ru:s,idx:i})), keywords};
+  const scored = sents.map((s,i)=>{
+    const ws = wordsOf(s);
+    let sc = ws.reduce((acc,w)=>acc+(freq.get(w)||0),0) / Math.sqrt(Math.max(ws.length,1));
+    if(i===0) sc *= 1.35; else if(i===1) sc *= 1.15;         // 开头句加权
+    if(/\d/.test(s)) sc *= 1.2;                               // 含数字加权
+    const caps = (s.match(/[А-ЯЁ][а-яё]+/g)||[]).length;      // 专名加权
+    sc *= (1 + Math.min(caps,4)*0.06);
+    return {ru:s, idx:i, sc};
+  });
+  const top = scored.slice().sort((a,b)=>b.sc-a.sc).slice(0,n).sort((a,b)=>a.idx-b.idx);
+  return {items:top, keywords};
+}
+
+/* ---------- 翻译（MyMemory 免费接口） ---------- */
+function mailParam(){
+  const m = localStorage.getItem("rut_email");
+  return m ? "&de="+encodeURIComponent(m) : "";
+}
+async function translateChunk(q){
+  const url = "https://api.mymemory.translated.net/get?q="+encodeURIComponent(q)+
+              "&langpair=ru%7Czh-CN"+mailParam();
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const d = await r.json();
+  const t = (d && d.responseData && d.responseData.translatedText) || "";
+  if(/MYMEMORY WARNING|QUOTA|INVALID EMAIL|INVALID TARGET/i.test(t)) throw new Error("额度或参数问题："+t.slice(0,80));
+  if(!t) throw new Error("接口返回为空");
+  return t;
+}
+async function translateText(text){
+  const paras = splitParagraphs(text);
+  const outParas = [];
+  for(const p of paras){
+    const chunks = chunkText(p, 420);
+    const parts = [];
+    for(const c of chunks){ parts.push(await translateChunk(c)); }
+    outParas.push(parts.join(" "));
+  }
+  return outParas.join("\n\n");
+}
+
+/* ---------- 主流程（防抖 + 顺序号防竞态） ---------- */
+let timer=null, runId=0;
+function setStatus(html, cls){ statusEl.innerHTML=html; statusEl.className="status"+(cls?" "+cls:""); }
+function updateStats(){
+  const t = srcEl.value;
+  statsEl.textContent = t.trim().length + " 字 · " + splitSentences(t).length + " 句";
+}
+async function run(){
+  const text = srcEl.value.trim();
+  const my = ++runId;
+  updateStats();
+  if(!text){ zhOut.textContent=""; $("sumBox").innerHTML='<p class="small">输入原文后，这里会出现要点句（俄语原句 + 中文）。</p>'; $("kwBox").innerHTML=""; setStatus(""); return; }
+  setStatus('<span class="spinner"></span>翻译中…');
+  // 总结先本地算，立刻显示俄语要点句
+  const n = parseInt($("sumN").value,10);
+  const sum = summarize(text, n);
+  renderSummary(sum, null);
+  try{
+    const zh = await translateText(text);
+    if(my!==runId) return;
+    zhOut.textContent = zh;
+    setStatus("翻译完成 ✓","ok");
+    saveHistory(text);
+  }catch(e){
+    if(my!==runId) return;
+    setStatus("翻译失败："+e.message+"。可能是免费额度用完（次日恢复）或网络问题；下面的要点句仍可用。","warn");
+  }
+  // 再逐句翻译要点
+  try{
+    const zhList = [];
+    for(const it of sum.items){ zhList.push(await translateChunk(it.ru)); }
+    if(my!==runId) return;
+    renderSummary(sum, zhList);
+  }catch(e){ /* 要点翻译失败时保留俄语版 */ }
+}
+function renderSummary(sum, zhList){
+  const box = $("sumBox");
+  if(!sum.items.length){ box.innerHTML='<p class="small">暂无要点。</p>'; return; }
+  box.innerHTML = sum.items.map((it,i)=>
+    '<div class="sum-item"><div class="sum-ru">'+(i+1)+". "+escapeHtml(it.ru)+"</div>"+
+    (zhList? '<div class="sum-zh">'+escapeHtml(zhList[i]||"")+"</div>" : '<div class="sum-zh">（翻译中…）</div>')+
+    "</div>").join("");
+  $("kwBox").innerHTML = sum.keywords.map(k=>'<span class="chip">'+escapeHtml(k)+"</span>").join("");
+  box.dataset.zh = zhList? zhList.join("\n") : "";
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* ---------- 历史（LocalStorage） ---------- */
+const HKEY="rut_history_v1";
+function loadHist(){ try{ return JSON.parse(localStorage.getItem(HKEY))||[] }catch(e){ return [] } }
+function saveHistory(text){
+  let h = loadHist();
+  if(h[0] && h[0].src===text) return;
+  h.unshift({src:text, at:Date.now()});
+  h = h.slice(0,20);
+  localStorage.setItem(HKEY, JSON.stringify(h));
+  renderHist();
+}
+function renderHist(){
+  const h = loadHist();
+  $("histCard").style.display = h.length? "block":"none";
+  $("histBox").innerHTML = h.map((e,i)=>'<div class="hist-item" data-i="'+i+'">'+escapeHtml(e.src.slice(0,80))+"</div>").join("");
+  $("histBox").querySelectorAll(".hist-item").forEach(el=>{
+    el.addEventListener("click", ()=>{ srcEl.value = loadHist()[+el.dataset.i].src; run(); window.scrollTo({top:0,behavior:"smooth"}); });
+  });
+}
+
+/* ---------- 按钮与事件 ---------- */
+function copyText(t, btn){
+  if(!t) return;
+  const done=()=>{ const o=btn.textContent; btn.textContent="已复制 ✓"; setTimeout(()=>btn.textContent=o,1200); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t,done)); }
+  else fallbackCopy(t, done);
+}
+function fallbackCopy(t, done){
+  const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta);
+  ta.select(); try{ document.execCommand("copy"); done(); }catch(e){} document.body.removeChild(ta);
+}
+$("btnCopyZh").addEventListener("click", e=>copyText(zhOut.textContent, e.target));
+$("btnCopySum").addEventListener("click", e=>copyText($("sumBox").dataset.zh||"", e.target));
+$("btnClear").addEventListener("click", ()=>{ srcEl.value=""; run(); srcEl.focus(); });
+$("btnGo").addEventListener("click", run);
+$("btnPaste").addEventListener("click", async ()=>{
+  try{ const t = await navigator.clipboard.readText(); if(t){ srcEl.value=t; run(); } }
+  catch(e){ setStatus("浏览器不允许自动读取剪贴板，请长按输入框粘贴。","warn"); srcEl.focus(); }
+});
+$("btnMail").addEventListener("click", ()=>{
+  const v=$("email").value.trim();
+  if(v) localStorage.setItem("rut_email", v); else localStorage.removeItem("rut_email");
+  setStatus("邮箱已保存（只存本机）。","ok"); run();
+});
+$("sumN").addEventListener("change", run);
+$("btnHistClear").addEventListener("click", ()=>{ localStorage.removeItem(HKEY); renderHist(); });
+srcEl.addEventListener("input", ()=>{ updateStats(); clearTimeout(timer); timer=setTimeout(run, 700); });
+
+/* 初始化 */
+$("email").value = localStorage.getItem("rut_email")||"";
+renderHist(); updateStats();
+</script>
+</body>
+</html>

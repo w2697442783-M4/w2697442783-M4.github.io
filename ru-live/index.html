@@ -69,6 +69,17 @@
   <div class="banner" id="envBanner"></div>
 
   <section class="card">
+    <h2>麦克风自检（先做这个，1 分钟）</h2>
+    <p class="small">点下面按钮，对着设备大声说 5 秒钟的话，然后听回放里有没有你的声音。这一步能确定问题到底在麦克风还是在识别。</p>
+    <div class="row">
+      <button class="mini" id="btnTest" type="button">🎤 录 5 秒自检</button>
+      <span class="status" id="testStatus"></span>
+    </div>
+    <div id="testBox" style="margin-top:8px"></div>
+    <div class="diag" id="testDiag"></div>
+  </section>
+
+  <section class="card">
     <div class="row" style="margin-top:0">
       <label class="small" for="engineSel">识别引擎</label>
       <select id="engineSel">
@@ -475,6 +486,40 @@ $("btnCopy").addEventListener("click", e=>{
   if(!text) return;
   const btn=e.target, done=()=>{ const o=btn.textContent; btn.textContent="已复制 ✓"; setTimeout(()=>btn.textContent=o,1200); };
   if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>{});
+});
+</script>
+<script>
+"use strict";
+/* ================= 麦克风自检：MediaRecorder 录 5 秒 → 回放 ================= */
+$("btnTest").addEventListener("click", async ()=>{
+  const st=$("testStatus"), box=$("testBox"), dg=$("testDiag");
+  box.innerHTML=""; dg.textContent="";
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ dg.textContent="当前环境拿不到麦克风（多半不是在 Safari 里打开）。"; return; }
+  if(typeof MediaRecorder==="undefined"){ dg.textContent="这个浏览器不支持录音组件（MediaRecorder），请用 Safari 打开。"; return; }
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ dg.textContent="麦克风被拒绝："+(e && e.message? e.message:e); return; }
+  const tr=stream.getAudioTracks()[0];
+  const label=tr? (tr.label||"（无名称）"):"?";
+  const muted=tr? tr.muted : "?";
+  let mr;
+  try{ mr=new MediaRecorder(stream); }
+  catch(e){ dg.textContent="录音组件启动失败："+e.message; stream.getTracks().forEach(t=>t.stop()); return; }
+  const parts=[];
+  mr.ondataavailable=e=>{ if(e.data && e.data.size) parts.push(e.data); };
+  mr.onstop=()=>{
+    stream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} });
+    const blob=new Blob(parts,{type:mr.mimeType||"audio/mp4"});
+    const kb=(blob.size/1024).toFixed(1);
+    const url=URL.createObjectURL(blob);
+    box.innerHTML='<audio controls src="'+url+'" style="width:100%"></audio>';
+    st.textContent="录完，听回放 ↓";
+    dg.textContent="自检结果：录音大小 "+kb+" KB · 麦克风设备："+label+" · 静音状态 muted="+muted+
+      "。回放里能听到你的声音 = 麦克风没问题，是识别通道的事；回放是静音/几乎没声 = 网页拿到的就是静音流（把这行字截图发我）。一般 5 秒说话的录音有几十 KB，若只有个位数 KB 基本就是静音。";
+  };
+  st.textContent="录音中…大声说 5 秒！";
+  try{ mr.start(); }catch(e){ dg.textContent="开始录音失败："+e.message; return; }
+  setTimeout(()=>{ try{ mr.stop(); }catch(_){} }, 5000);
 });
 </script>
 </body>

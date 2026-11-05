@@ -40,7 +40,9 @@
   button.mini{border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:9px;
     padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
   button.mini:active{background:#f6e9e6}
+  select{border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:13px;background:#fff;font-family:inherit}
   label.small{font-size:12px;color:var(--mut)}
+  progress{width:100%;height:8px;display:none;margin-top:8px}
   #interim{color:#a08b8b;font-style:italic;min-height:24px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:6px}
   .seg{border-top:1px dashed var(--line);padding:8px 0}
   .seg:first-of-type{border-top:none}
@@ -67,11 +69,19 @@
   <div class="banner" id="envBanner"></div>
 
   <section class="card">
-    <div class="microw">
+    <div class="row" style="margin-top:0">
+      <label class="small" for="engineSel">识别引擎</label>
+      <select id="engineSel">
+        <option value="whisper" selected>高准 · Whisper（俄语更准，首次需下载模型）</option>
+        <option value="webspeech">实时 · 浏览器识别（出字快，准确率一般）</option>
+      </select>
+    </div>
+    <div class="microw" style="margin-top:10px">
       <button id="btnMic" type="button">🎙 开始听译</button>
       <span class="dot" id="dot"></span>
       <span class="status" id="status">未开始</span>
     </div>
+    <progress id="prog" max="100" value="0"></progress>
     <div class="diag" id="diag"></div>
     <div class="row">
       <label style="display:flex;gap:6px;align-items:center" class="small">
@@ -84,7 +94,7 @@
       <button class="mini" id="btnCopy" type="button">复制全部记录</button>
       <button class="mini" id="btnClear" type="button">清空</button>
     </div>
-    <p class="small">iPhone 使用要点：① 必须用 <b>Safari</b> 打开（在 App 里点开的不行，点分享按钮选「在 Safari 中打开」）；② 允许麦克风；③ 系统「设置 → 通用 → 键盘 → 启用听写」要打开；④ 保持屏幕亮着、别切后台。</p>
+    <p class="small">高准模式：Whisper 模型在本机运行，每约 12 秒转写一段，延迟十几秒但俄语准确得多，下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
   </section>
 
   <section class="card">
@@ -99,14 +109,13 @@
     <div id="feed"></div>
   </section>
 
-  <p class="foot">识别用浏览器自带语音识别（俄语），翻译走 MyMemory 免费接口，总结在本地完成。<br>
-  文字版（粘贴文本翻译）在 <a href="../ru-translator/">这里</a>。</p>
+  <p class="foot">翻译走 MyMemory 免费接口，总结在本地完成。文字版（粘贴文本翻译）在 <a href="../ru-translator/">这里</a>。</p>
 </div>
 
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const feed=$("feed"), interimEl=$("interim"), statusEl=$("status"), dot=$("dot"), diagEl=$("diag");
+const feed=$("feed"), interimEl=$("interim"), statusEl=$("status"), dot=$("dot"), diagEl=$("diag"), progEl=$("prog");
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function setStatus(t,cls){statusEl.textContent=t;statusEl.className="status"+(cls?" "+cls:"");}
 function diag(t){ diagEl.textContent=t; }
@@ -116,11 +125,8 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 const banner=$("envBanner");
 function showBanner(html){ banner.innerHTML=html; banner.classList.add("show"); }
-if(!SR){
-  showBanner("⚠ <b>当前打开方式不支持语音识别。</b>你多半是在某个 App 的内置浏览器里打开的。请点页面右上角的分享/菜单按钮，选择<b>「在 Safari 中打开」</b>，再点开始听译。");
-  $("btnMic").disabled=true; setStatus("当前环境不支持识别","warn");
-}else if(isIOS){
-  showBanner("iPhone 提示：识别用的是系统听写。若一直识别不到：到「设置 → 通用 → 键盘」确认<b>「启用听写」</b>已打开，并保持本页在前台、屏幕常亮。");
+if(isIOS){
+  showBanner("iPhone 提示：① 必须在 <b>Safari</b> 里打开（App 内置浏览器不行，点指南针图标转到 Safari）；② 「设置 → 通用 → 键盘 → 启用听写」打开（实时模式要用）；③ 保持前台、屏幕常亮。");
 }
 
 /* ---------- 句子与总结（本地） ---------- */
@@ -174,9 +180,10 @@ async function translateRaw(q){
 }
 
 /* ---------- 实时记录 ---------- */
-let segments=[], segSinceSum=0, gotAnyResult=false, listenStart=0, watchdog=null;
+let segments=[], segSinceSum=0, gotAnyResult=false, watchdog=null;
 function addSegment(ru){
   const clean=ru.trim(); if(!clean) return;
+  gotAnyResult=true;
   const seg={ru:clean, zh:null}; segments.push(seg);
   const div=document.createElement("div"); div.className="seg";
   div.innerHTML='<div class="ru">'+escapeHtml(clean)+'</div><div class="zh wait">翻译中…</div>';
@@ -202,18 +209,19 @@ async function runSummary(){
     }catch(e){ const el=box.querySelector('[data-k="'+i+'"]'); if(el) el.textContent="（暂未译出）"; }
   }
 }
-
-/* ---------- 语音识别：iOS 用逐句模式 + 快速重启，其他平台用连续模式 ---------- */
+</script>
+<script>
+"use strict";
+/* ================= 引擎 A：浏览器识别（实时） ================= */
 let rec=null, wantListen=false, restartTimer=null;
-function startRec(){
-  if(!SR || !wantListen) return;
+function wsStart(){
+  if(!SR){ setStatus("此浏览器不支持实时模式，请用高准模式","warn"); wantListen=false; syncMicUI(); return; }
   rec=new SR();
   rec.lang="ru-RU";
-  rec.continuous = !isIOS;              // iOS 上 continuous 常导致无结果，改逐句
-  rec.interimResults = true;
-  rec.maxAlternatives = 1;
+  rec.continuous=!isIOS;
+  rec.interimResults=true;
+  rec.maxAlternatives=1;
   rec.onresult=e=>{
-    gotAnyResult=true;
     let interim="";
     for(let i=e.resultIndex;i<e.results.length;i++){
       const r=e.results[i];
@@ -228,52 +236,159 @@ function startRec(){
     if(code==="not-allowed"||code==="service-not-allowed"){
       wantListen=false; syncMicUI();
       setStatus("麦克风/听写权限被拒绝","warn");
-      diag("解决：① 确认是用 Safari 打开；② 设置 → Safari → 麦克风 允许；③ 设置 → 通用 → 键盘 → 启用听写 打开。然后重新点开始。");
+      diag("解决：① 用 Safari 打开；② 设置 → Safari → 麦克风 允许；③ 设置 → 通用 → 键盘 → 启用听写 打开。再重新开始。");
       return;
     }
-    if(code==="audio-capture"){ diag("没有检测到麦克风输入，检查一下耳机/麦克风。"); }
-    else if(code==="network"){ diag("识别服务网络波动（错误 network），正在自动重试…"); }
-    else if(code==="no-speech"){ /* 正常，继续 */ }
-    else diag("识别事件："+code+"（已自动处理，继续聆听）");
+    if(code==="audio-capture") diag("没有检测到麦克风输入。");
+    else if(code==="network") diag("识别服务网络波动（network），自动重试中…");
+    else if(code!=="no-speech") diag("识别事件："+code+"（已自动处理）");
   };
   rec.onend=()=>{
     dot.classList.remove("on");
     if(wantListen){
       clearTimeout(restartTimer);
-      restartTimer=setTimeout(()=>{ if(wantListen) startRec(); }, isIOS? 120 : 300);
-    }else{
-      setStatus("已停止");
-    }
+      restartTimer=setTimeout(()=>{ if(wantListen) wsStart(); }, isIOS?120:300);
+    }else setStatus("已停止");
   };
+  try{ rec.start(); dot.classList.add("on"); setStatus("聆听中（实时模式）…","ok"); }catch(_){}
+}
+function wsStop(){ try{ rec && rec.stop(); }catch(_){} }
+
+/* ================= 引擎 B：Whisper（高准，本机转写） ================= */
+let transcriber=null, whisperLoading=false, mediaStream=null, audioCtx=null;
+async function loadWhisper(){
+  if(transcriber) return true;
+  if(whisperLoading) return false;
+  whisperLoading=true;
+  progEl.style.display="block"; progEl.value=0;
+  setStatus("正在下载 Whisper 模型（约 80MB，只下一次）…");
+  diag("模型从 HuggingFace 下载到本机，之后在本机转写、不上传录音。网速慢的话要等 1–3 分钟，别关页面。");
   try{
-    rec.start();
-    dot.classList.add("on");
-    setStatus("聆听中…对着手机方向说话试试","ok");
-  }catch(_){ /* 实例已在运行，忽略 */ }
+    const mod=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/dist/transformers.min.js");
+    mod.env.allowLocalModels=false;
+    const onProg=p=>{
+      if(p && p.status==="progress" && p.total){
+        progEl.value=Math.round(p.loaded/p.total*100);
+        setStatus("下载模型中… "+Math.round(p.loaded/p.total*100)+"%（"+(p.file||"")+"）");
+      }else if(p && p.status==="ready"){ progEl.value=100; }
+    };
+    const device = (navigator.gpu? "webgpu":"wasm");
+    try{
+      transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:device,progress_callback:onProg});
+    }catch(e1){
+      if(device==="webgpu"){
+        diag("WebGPU 初始化失败，改用 CPU 模式加载…");
+        transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:"wasm",progress_callback:onProg});
+      }else throw e1;
+    }
+    progEl.style.display="none";
+    diag("模型就绪 ✓ 之后每次打开会快很多（已缓存）。");
+    return true;
+  }catch(e){
+    progEl.style.display="none";
+    setStatus("模型下载失败","warn");
+    diag("下载/加载失败："+(e && e.message? e.message:e)+"。多半是网络到 CDN/HuggingFace 不通。换网络重试，或先用实时模式顶着。");
+    return false;
+  }finally{ whisperLoading=false; }
+}
+function pickMime(){
+  const cands=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus",""];
+  for(const c of cands){ if(!c) return ""; try{ if(MediaRecorder.isTypeSupported(c)) return c; }catch(_){} }
+  return "";
+}
+function recordChunk(stream, ms){
+  return new Promise(res=>{
+    let mr;
+    try{ const mime=pickMime(); mr=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }
+    catch(e){ res(null); return; }
+    const parts=[];
+    mr.ondataavailable=e=>{ if(e.data && e.data.size) parts.push(e.data); };
+    mr.onstop=()=>res(new Blob(parts,{type:mr.mimeType||"audio/webm"}));
+    try{ mr.start(); }catch(e){ res(null); return; }
+    setTimeout(()=>{ try{ mr.stop(); }catch(_){ res(null); } }, ms);
+  });
+}
+async function blobToF32(blob){
+  const buf=await blob.arrayBuffer();
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  const decoded=await audioCtx.decodeAudioData(buf.slice(0));
+  const len=Math.max(1,Math.ceil(decoded.duration*16000));
+  const off=new OfflineAudioContext(1,len,16000);
+  const srcNode=off.createBufferSource(); srcNode.buffer=decoded; srcNode.connect(off.destination); srcNode.start();
+  const rendered=await off.startRendering();
+  return rendered.getChannelData(0);
+}
+function rms(a){ let s=0; const step=Math.max(1,Math.floor(a.length/4000)); for(let i=0;i<a.length;i+=step) s+=a[i]*a[i]; return Math.sqrt(s/Math.ceil(a.length/step)); }
+async function whisperStart(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus("当前环境拿不到麦克风","warn");
+    diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
+    wantListen=false; syncMicUI(); return;
+  }
+  const ok=await loadWhisper();
+  if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
+  try{
+    mediaStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
+  }catch(e){
+    setStatus("麦克风被拒绝","warn");
+    diag("请在 Safari 设置里允许本页使用麦克风，然后重新开始。");
+    wantListen=false; syncMicUI(); return;
+  }
+  dot.classList.add("on");
+  setStatus("聆听中（高准模式，每约 12 秒出一段）…","ok");
+  interimEl.textContent="（高准模式：录音转写中，稍等十几秒出第一段…）";
+  while(wantListen){
+    const blob=await recordChunk(mediaStream,12000);
+    if(!wantListen) break;
+    if(!blob || blob.size<2000) continue;
+    let audio;
+    try{ audio=await blobToF32(blob); }catch(e){ diag("音频解码失败一次："+e.message); continue; }
+    if(rms(audio)<0.004){ interimEl.textContent="（安静…继续聆听）"; continue; }
+    interimEl.textContent="（正在转写上一段…）";
+    try{
+      const out=await transcriber(audio,{language:"russian",task:"transcribe"});
+      const text=((out && out.text)||"").trim();
+      if(text && !/^\[.*\]$/.test(text)) addSegment(text);
+      interimEl.textContent="（聆听中…）";
+    }catch(e){ diag("转写出错一次："+(e && e.message? e.message:e)); }
+  }
+  dot.classList.remove("on");
+}
+function whisperStop(){
+  if(mediaStream){ mediaStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); mediaStream=null; }
+}
+
+/* ================= 统一开关 ================= */
+function syncMicUI(){
+  $("btnMic").textContent = wantListen? "⏹ 停止听译":"🎙 开始听译";
+  $("btnMic").classList.toggle("on", wantListen);
+  $("engineSel").disabled = wantListen;
+  if(!wantListen) dot.classList.remove("on");
 }
 function armWatchdog(){
   clearTimeout(watchdog);
   watchdog=setTimeout(()=>{
     if(wantListen && !gotAnyResult){
       setStatus("还没识别到任何声音","warn");
-      diag("开始 25 秒了，一句都没识别到。按顺序查：① 本页是不是在 Safari 里打开（不是 App 内置浏览器）；② 设置 → 通用 → 键盘 → 启用听写 已打开；③ 离声源近一点大声说一句俄语试试；④ 关掉 Wi-Fi 用流量或反过来换个网络。若页面顶部有黄色提示，按提示做。");
+      diag("开始 30 秒了还没出字。按顺序查：① 在 Safari 里打开（不是 App 内置浏览器）；② 麦克风已允许；③ 离声源近点、大声说一句试试；④ 高准模式下请确认模型已下载完成（看上方状态）。");
     }
-  }, 25000);
+  },30000);
 }
-function syncMicUI(){
-  $("btnMic").textContent = wantListen? "⏹ 停止听译":"🎙 开始听译";
-  $("btnMic").classList.toggle("on", wantListen);
-  if(!wantListen) dot.classList.remove("on");
-}
-$("btnMic").addEventListener("click", ()=>{
-  if(!SR) return;
+$("btnMic").addEventListener("click", async ()=>{
   if(wantListen){
-    wantListen=false; clearTimeout(restartTimer); clearTimeout(watchdog);
-    try{ rec && rec.stop(); }catch(_){}
+    wantListen=false;
+    clearTimeout(restartTimer); clearTimeout(watchdog);
+    wsStop(); whisperStop();
     syncMicUI(); setStatus("已停止"); diag("");
-  }else{
-    wantListen=true; gotAnyResult=false; listenStart=Date.now();
-    syncMicUI(); diag(""); startRec(); armWatchdog();
+    return;
+  }
+  wantListen=true; gotAnyResult=false;
+  syncMicUI(); diag("");
+  const engine=$("engineSel").value;
+  if(engine==="whisper"){ armWatchdog(); await whisperStart(); if(!wantListen) syncMicUI(); }
+  else{
+    if(!SR){ showBanner("⚠ 当前浏览器不支持「实时模式」。请改用<b>高准 · Whisper</b> 模式，或用 Safari 打开本页。"); wantListen=false; syncMicUI(); return; }
+    armWatchdog(); wsStart();
   }
 });
 $("btnSum").addEventListener("click", runSummary);

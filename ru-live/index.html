@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#7a1f1f">
+<title>课堂听译 · 俄语实时翻译与总结</title>
+<style>
+  :root{
+    --ink:#221a1a; --mut:#7a6a6a; --acc:#7a1f1f; --acc2:#c0392b;
+    --bg:#f7f1ec; --card:#fff; --line:#e5d9d2; --ok:#0a7a42; --warn:#b3540e;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.6;padding:12px 12px 46px}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:21px;margin:4px 0 2px}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 4px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px;
+    box-shadow:0 1px 3px rgba(34,26,26,.05)}
+  .card h2{font-size:15px;margin:0 0 8px}
+  .microw{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  #btnMic{
+    border:none;border-radius:999px;padding:14px 26px;font-size:17px;font-weight:700;cursor:pointer;
+    background:var(--acc);color:#fff;font-family:inherit;min-width:170px;
+  }
+  #btnMic.on{background:var(--acc2);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,57,43,.45)}70%{box-shadow:0 0 0 14px rgba(192,57,43,0)}100%{box-shadow:0 0 0 0 rgba(192,57,43,0)}}
+  .dot{width:11px;height:11px;border-radius:50%;background:#cbb;flex:none}
+  .dot.on{background:#e03131;box-shadow:0 0 8px #e03131}
+  .status{font-size:13px;color:var(--mut)}
+  .status.warn{color:var(--warn)} .status.ok{color:var(--ok)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  button.mini{border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:9px;
+    padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  button.mini:active{background:#f6e9e6}
+  select{border:1px solid var(--line);border-radius:8px;padding:6px;font-size:13px;background:#fff;font-family:inherit}
+  label.small{font-size:12px;color:var(--mut)}
+  #interim{color:#a08b8b;font-style:italic;min-height:24px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:6px}
+  .seg{border-top:1px dashed var(--line);padding:8px 0}
+  .seg:first-of-type{border-top:none}
+  .seg .ru{font-size:14px;color:#6b5a5a}
+  .seg .zh{font-size:17px;margin-top:1px}
+  .seg .zh.wait{color:#b9a; font-size:14px}
+  #feed{max-height:52vh;overflow-y:auto}
+  .sum-item{border-top:1px dashed var(--line);padding:8px 0}
+  .sum-item:first-of-type{border-top:none}
+  .sum-ru{font-size:14px;color:#6b5a5a}
+  .sum-zh{font-size:16px;color:var(--acc)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{background:#f9e8e4;color:var(--acc);border-radius:20px;padding:2px 10px;font-size:12px}
+  .small{font-size:12px;color:var(--mut)}
+  .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:16px}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>课堂听译 · 俄语实时翻译</h1>
+  <p class="sub">点「开始听译」，把手机放在桌上：老师讲的俄语会实时转成文字、翻成中文，并滚动总结要点。</p>
+
+  <section class="card">
+    <div class="microw">
+      <button id="btnMic" type="button">🎙 开始听译</button>
+      <span class="dot" id="dot"></span>
+      <span class="status" id="status">未开始</span>
+    </div>
+    <div class="row">
+      <label style="display:flex;gap:6px;align-items:center" class="small">
+        <input type="checkbox" id="autoScroll" checked> 自动滚动
+      </label>
+      <label style="display:flex;gap:6px;align-items:center" class="small">
+        <input type="checkbox" id="autoSum" checked> 自动总结（每 6 句）
+      </label>
+      <button class="mini" id="btnSum" type="button">立即总结</button>
+      <button class="mini" id="btnCopy" type="button">复制全部记录</button>
+      <button class="mini" id="btnClear" type="button">清空</button>
+    </div>
+    <p class="small" id="supportNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>要点总结（滚动更新）</h2>
+    <div id="sumBox"><p class="small">开始听译后，这里会提炼老师讲的关键句（俄语 + 中文）。</p></div>
+    <div class="chips" id="kwBox"></div>
+  </section>
+
+  <section class="card">
+    <h2>实时记录</h2>
+    <div id="interim">（老师还没开口…）</div>
+    <div id="feed"></div>
+  </section>
+
+  <p class="foot">识别用浏览器自带语音识别（俄语），翻译走 MyMemory 免费接口，总结在本地完成。<br>
+  文字版（粘贴文本翻译）在 <a href="../ru-translator/">这里</a>。</p>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const feed=$("feed"), interimEl=$("interim"), statusEl=$("status"), dot=$("dot");
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function setStatus(t,cls){statusEl.textContent=t;statusEl.className="status"+(cls?" "+cls:"");}
+
+/* ---------- 句子与总结（本地） ---------- */
+function splitSentences(text){
+  const clean=text.replace(/\s+/g," ").trim(); if(!clean) return [];
+  const parts=clean.match(/[^.!?…]+(?:[.!?…]+["»”)]*)?/g)||[clean];
+  return parts.map(s=>s.trim()).filter(Boolean);
+}
+const STOP=new Set(("и в на с по для не что он она они мы вы это как а но из у к о об от до при за про над под без через после перед между также уже ещё только если когда где который которая которые которого которой этом эта этот эти того там здесь очень можно надо нужно было будет были есть быть стал более менее него неё них ему ей им нас вас мне тебе себе чем тем сам себя мой твой наш ваш свой один одна одни два три же бы ли ведь даже хотя потому поэтому тогда теперь всегда никогда иногда часто потом сначала наконец например конечно может могут должен должна должны около возле среди против вместо кроме благодаря несмотря согласно").split(" "));
+function wordsOf(s){return (s.toLowerCase().match(/[a-zа-яё]+/gi)||[]).filter(w=>w.length>2&&!STOP.has(w));}
+function summarize(text,n){
+  const sents=splitSentences(text); if(!sents.length) return {items:[],keywords:[]};
+  const freq=new Map(); sents.forEach(s=>wordsOf(s).forEach(w=>freq.set(w,(freq.get(w)||0)+1)));
+  const keywords=[...freq.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>e[0]);
+  if(sents.length<=n) return {items:sents.map((s,i)=>({ru:s,idx:i})),keywords};
+  const scored=sents.map((s,i)=>{
+    const ws=wordsOf(s);
+    let sc=ws.reduce((a,w)=>a+(freq.get(w)||0),0)/Math.sqrt(Math.max(ws.length,1));
+    if(/\d/.test(s)) sc*=1.2;
+    const caps=(s.match(/[А-ЯЁ][а-яё]+/g)||[]).length; sc*=(1+Math.min(caps,4)*0.06);
+    return {ru:s,idx:i,sc};
+  });
+  const top=scored.slice().sort((a,b)=>b.sc-a.sc).slice(0,n).sort((a,b)=>a.idx-b.idx);
+  return {items:top,keywords};
+}
+
+/* ---------- 翻译（队列 + 缓存，避免乱序与重复） ---------- */
+const zhCache=new Map();
+let tQueue=Promise.resolve();
+function translateQueued(text){
+  const key=text.trim();
+  if(zhCache.has(key)) return Promise.resolve(zhCache.get(key));
+  const job=tQueue.then(()=>translateRaw(key)).then(zh=>{ zhCache.set(key,zh); return zh; });
+  tQueue=job.catch(()=>{});
+  return job;
+}
+async function translateRaw(q){
+  if(q.length>420){ // 长句分段
+    const chunks=[]; let cur="";
+    for(const s of splitSentences(q)){ if((cur+" "+s).length>420&&cur){chunks.push(cur);cur=s;} else cur=cur?cur+" "+s:s; }
+    if(cur) chunks.push(cur);
+    const parts=[]; for(const c of chunks) parts.push(await translateRaw(c));
+    return parts.join(" ");
+  }
+  const url="https://api.mymemory.translated.net/get?q="+encodeURIComponent(q)+"&langpair=ru%7Czh-CN";
+  const r=await fetch(url); if(!r.ok) throw new Error("HTTP "+r.status);
+  const d=await r.json(); const t=(d&&d.responseData&&d.responseData.translatedText)||"";
+  if(/MYMEMORY WARNING|QUOTA|INVALID/i.test(t)) throw new Error("翻译额度用完或接口受限");
+  if(!t) throw new Error("翻译返回为空");
+  return t;
+}
+
+/* ---------- 实时记录 ---------- */
+let segments=[]; // {ru, zh}
+let segSinceSum=0;
+function addSegment(ru){
+  const clean=ru.trim(); if(!clean) return;
+  const seg={ru:clean, zh:null}; segments.push(seg);
+  const div=document.createElement("div"); div.className="seg";
+  div.innerHTML='<div class="ru">'+escapeHtml(clean)+'</div><div class="zh wait">翻译中…</div>';
+  feed.appendChild(div); seg.el=div.querySelector(".zh");
+  if($("autoScroll").checked) div.scrollIntoView({behavior:"smooth",block:"end"});
+  translateQueued(clean).then(zh=>{
+    seg.zh=zh; seg.el.textContent=zh; seg.el.classList.remove("wait");
+  }).catch(e=>{ seg.el.textContent="（翻译失败："+e.message+"）"; });
+  segSinceSum++;
+  if($("autoSum").checked && segSinceSum>=6){ segSinceSum=0; runSummary(); }
+}
+async function runSummary(){
+  const full=segments.map(s=>s.ru).join(" ");
+  const n = segments.length>14 ? 5 : 3;
+  const sum=summarize(full,n);
+  if(!sum.items.length) return;
+  const box=$("sumBox");
+  box.innerHTML=sum.items.map((it,i)=>'<div class="sum-item"><div class="sum-ru">'+(i+1)+". "+escapeHtml(it.ru)+'</div><div class="sum-zh" data-k="'+i+'">…</div></div>').join("");
+  $("kwBox").innerHTML=sum.keywords.map(k=>'<span class="chip">'+escapeHtml(k)+"</span>").join("");
+  for(let i=0;i<sum.items.length;i++){
+    try{ const zh=await translateQueued(sum.items[i].ru);
+      const el=box.querySelector('[data-k="'+i+'"]'); if(el) el.textContent=zh;
+    }catch(e){ const el=box.querySelector('[data-k="'+i+'"]'); if(el) el.textContent="（暂未译出）"; }
+  }
+}
+
+/* ---------- 语音识别（Web Speech API） ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, listening=false, wantListen=false, restartTimer=null;
+if(!SR){
+  $("supportNote").textContent="⚠ 当前浏览器不支持语音识别。请用 Safari（iPhone）或 Chrome 打开本页；若仍不行，可用 iPhone 自带「翻译」App 的对话模式应急。";
+  $("btnMic").disabled=true; setStatus("浏览器不支持语音识别","warn");
+}else{
+  $("supportNote").textContent="提示：iPhone 请用 Safari 打开，并允许麦克风权限；识别偶尔会自己停，本页会自动续上。保持屏幕亮着效果最好。";
+}
+function startRec(){
+  if(!SR) return;
+  rec=new SR();
+  rec.lang="ru-RU"; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+  rec.onresult=e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      if(r.isFinal){ addSegment(r[0].transcript); }
+      else interim+=r[0].transcript;
+    }
+    interimEl.textContent=interim||"（聆听中…）";
+  };
+  rec.onerror=e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){
+      wantListen=false; listening=false; syncMicUI();
+      setStatus("麦克风被拒绝：请在浏览器设置里允许本页使用麦克风。","warn");
+    } else if(e.error==="network"){
+      setStatus("识别服务网络波动，自动重试中…","warn");
+    }
+  };
+  rec.onend=()=>{
+    listening=false; dot.classList.remove("on");
+    if(wantListen){
+      setStatus("识别暂停，正在自动续上…");
+      clearTimeout(restartTimer);
+      restartTimer=setTimeout(()=>{ if(wantListen){ try{ startRec(); }catch(_){} } }, 350);
+    } else {
+      setStatus("已停止");
+    }
+  };
+  try{ rec.start(); listening=true; dot.classList.add("on"); setStatus("聆听中…老师讲的话会实时出现","ok"); }
+  catch(_){ /* 已在运行 */ }
+}
+function syncMicUI(){
+  $("btnMic").textContent = wantListen? "⏹ 停止听译":"🎙 开始听译";
+  $("btnMic").classList.toggle("on", wantListen);
+  if(!wantListen){ dot.classList.remove("on"); }
+}
+$("btnMic").addEventListener("click", ()=>{
+  if(!SR) return;
+  if(wantListen){ wantListen=false; clearTimeout(restartTimer); try{ rec && rec.stop(); }catch(_){} syncMicUI(); setStatus("已停止"); }
+  else{ wantListen=true; syncMicUI(); startRec(); }
+});
+$("btnSum").addEventListener("click", runSummary);
+$("btnClear").addEventListener("click", ()=>{
+  segments=[]; segSinceSum=0; feed.innerHTML=""; interimEl.textContent="（老师还没开口…）";
+  $("sumBox").innerHTML='<p class="small">开始听译后，这里会提炼老师讲的关键句（俄语 + 中文）。</p>'; $("kwBox").innerHTML="";
+});
+$("btnCopy").addEventListener("click", e=>{
+  const text=segments.map(s=>(s.zh? s.ru+"\n"+s.zh : s.ru)).join("\n");
+  if(!text) return;
+  const btn=e.target, done=()=>{ const o=btn.textContent; btn.textContent="已复制 ✓"; setTimeout(()=>btn.textContent=o,1200); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>{});
+});
+</script>
+</body>
+</html>

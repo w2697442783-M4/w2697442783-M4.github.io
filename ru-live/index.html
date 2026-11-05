@@ -265,12 +265,10 @@ function wsStart(){
 }
 function wsStop(){ try{ rec && rec.stop(); }catch(_){} }
 
-/* ================= 引擎 B：Whisper 高准（PCM 直采 + 队列转写 + 自愈） ================= */
+/* ================= 引擎 B：Whisper 高准（录音文件通道） ================= */
 let transcriber=null, whisperLoading=false;
-let micStream=null, actx=null, srcNode=null, procNode=null;
-let pcmParts=[], pcmLen=0, capTimer=null, capSec=0, lastRms=0;
+let mrStream=null, capTimer=null, capSec=0, lastRms=0, segCount=0, decCtx=null;
 let txChain=Promise.resolve(), txPending=0, txSkipped=0;
-let healUsed=false, healing=false, silentChunks=0;
 const TARGET_SR=16000, CHUNK_SEC=10;
 async function loadWhisper(){
   if(transcriber) return true;
@@ -320,14 +318,6 @@ function amplify(audio){
   if(g>1.05){ for(let i=0;i<audio.length;i++) audio[i]*=g; }
   return g;
 }
-function takePcm(){
-  if(!pcmLen) return null;
-  const all=new Float32Array(pcmLen);
-  let off=0;
-  for(const part of pcmParts){ all.set(part,off); off+=part.length; }
-  pcmParts=[]; pcmLen=0;
-  return all;
-}
 function levelBars(r){
   const bars="▁▂▃▄▅▆▇█";
   const idx=Math.max(0,Math.min(7,Math.floor(r*30)));
@@ -336,7 +326,7 @@ function levelBars(r){
 function txStatus(){
   setStatus("聆听中（高准）· 已录 "+Math.floor(capSec/60)+":"+String(capSec%60).padStart(2,"0")+
     " · 已出 "+segments.length+" 段"+(txPending? " · 转写中 "+txPending:"")+(txSkipped? " · 已跳过 "+txSkipped+" 段":""), "ok");
-  interimEl.textContent="🎙 当前音量 "+levelBars(lastRms)+" "+lastRms.toFixed(4)+"（说话时会动；一直 0.000x 就是麦克风没进声）";
+  interimEl.textContent="🎙 最近一段音量 "+levelBars(lastRms)+" "+lastRms.toFixed(4);
 }
 function enqueueTx(audio){
   if(txPending>=3){ txSkipped++; diag("转写速度跟不上，已跳过较早的 "+txSkipped+" 段音频（不影响继续录音）。"); return; }
@@ -354,92 +344,99 @@ function enqueueTx(audio){
     txPending--;
   }).catch(()=>{ txPending--; });
 }
-function closeMic(){
-  try{ procNode && procNode.disconnect(); }catch(_){}
-  try{ srcNode && srcNode.disconnect(); }catch(_){}
-  try{ actx && actx.close(); }catch(_){}
-  procNode=null; srcNode=null; actx=null;
-  if(micStream){ micStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); micStream=null; }
-  pcmParts=[]; pcmLen=0;
+function pickMime(){
+  const cands=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus",""];
+  for(const c of cands){ if(!c) return ""; try{ if(MediaRecorder.isTypeSupported(c)) return c; }catch(_){} }
+  return "";
 }
-async function openMic(){
-  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
-  const tr=micStream.getAudioTracks()[0];
-  if(tr){
-    tr.onmute=()=>diag("⚠ 系统把麦克风静音了：通常是被别的 App 或另一个标签页占用。关掉其他「课堂听译」标签和在用麦克风的 App（语音类），再点停止→开始。");
-    tr.onunmute=()=>diag("麦克风恢复进声 ✓");
-    if(tr.muted) diag("⚠ 麦克风当前就是静音状态（被占用）。关掉其他在用麦克风的 App/标签，再点停止→开始。");
+function decodeWithTimeout(arrayBuf){
+  return new Promise((resolve,reject)=>{
+    if(!decCtx) decCtx=new (window.AudioContext||window.webkitAudioContext)();
+    let done=false;
+    const ok=b=>{ if(!done){ done=true; resolve(b); } };
+    const bad=e=>{ if(!done){ done=true; reject(e instanceof Error? e : new Error("解码失败")); } };
+    try{
+      const p=decCtx.decodeAudioData(arrayBuf, ok, bad);
+      if(p && typeof p.then==="function") p.then(ok).catch(()=>{});
+    }catch(e){ bad(e); }
+    setTimeout(()=>bad(new Error("解码超时 15 秒")), 15000);
+  });
+}
+function recordOne(ms){
+  return new Promise(res=>{
+    let mr; const mime=pickMime();
+    try{ mr=new MediaRecorder(mrStream, mime?{mimeType:mime}:undefined); }
+    catch(e){ res(null); return; }
+    const parts=[];
+    mr.ondataavailable=e=>{ if(e.data && e.data.size) parts.push(e.data); };
+    mr.onstop=()=>res(new Blob(parts,{type:mr.mimeType||"audio/mp4"}));
+    try{ mr.start(); }catch(e){ res(null); return; }
+    setTimeout(()=>{ try{ mr.stop(); }catch(_){ res(null); } }, ms);
+  });
+}
+async function handleBlob(blob, n){
+  const kb=(blob.size/1024).toFixed(0);
+  let audioBuf;
+  try{ audioBuf=await decodeWithTimeout(await blob.arrayBuffer()); }
+  catch(e){ diag("第 "+n+" 段解码失败："+e.message+"（录音 "+kb+"KB，已跳过，不影响后面）"); return; }
+  let mono=audioBuf.getChannelData(0);
+  if(audioBuf.numberOfChannels>1){
+    const ch1=audioBuf.getChannelData(1);
+    const mix=new Float32Array(mono.length);
+    for(let i=0;i<mono.length;i++) mix[i]=(mono[i]+ch1[i])/2;
+    mono=mix;
   }
-  actx=new (window.AudioContext||window.webkitAudioContext)();
-  await actx.resume();
-  srcNode=actx.createMediaStreamSource(micStream);
-  procNode=actx.createScriptProcessor(4096,1,1);
-  const inRate=actx.sampleRate;
-  procNode.onaudioprocess=e=>{
-    if(!wantListen) return;
-    const ch=e.inputBuffer.getChannelData(0);
-    lastRms=bufRms(ch);
-    const ds=downsample(ch, inRate);
-    pcmParts.push(ds); pcmLen+=ds.length;
-  };
-  srcNode.connect(procNode);
-  procNode.connect(actx.destination);
+  const audio=downsample(mono, audioBuf.sampleRate);
+  const r=bufRms(audio), pk=bufPeak(audio);
+  lastRms=r;
+  if(pk<0.012 && r<0.0012){
+    diag("第 "+n+" 段没声（录音 "+kb+"KB，峰值 "+pk.toFixed(3)+"），已跳过。");
+    return;
+  }
+  const g=amplify(audio);
+  diag("第 "+n+" 段：录音 "+kb+"KB · 峰值 "+pk.toFixed(3)+(g>1.6? " · 已放大 ×"+g.toFixed(1):"")+" · 转写中…");
+  enqueueTx(audio);
 }
-async function healMic(){
-  if(healing || !wantListen) return;
-  healing=true;
-  diag("连续检测不到声音，正在自动重新获取麦克风…");
-  closeMic();
-  try{ await openMic(); diag("麦克风已重新获取，对着设备说句话看音量条。"); }
-  catch(e){ diag("重新获取麦克风失败："+(e && e.message? e.message:e)+"。请手动点停止→开始。"); }
-  healing=false;
+async function recordLoop(){
+  while(wantListen){
+    const blob=await recordOne(CHUNK_SEC*1000);
+    if(!wantListen) break;
+    if(!blob) continue;
+    segCount++;
+    handleBlob(blob, segCount);
+  }
 }
 async function whisperStart(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    setStatus("当前环境拿不到麦克风","warn");
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder==="undefined"){
+    setStatus("当前环境不支持录音通道","warn");
     diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
     wantListen=false; syncMicUI(); return;
   }
   const ok=await loadWhisper();
   if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
-  try{ await openMic(); }
-  catch(e){
+  try{
+    mrStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
+  }catch(e){
     setStatus("麦克风被拒绝","warn");
     diag("请在 Safari 设置里允许本页使用麦克风，然后重新开始。");
     wantListen=false; syncMicUI(); return;
   }
+  const tr=mrStream.getAudioTracks()[0];
+  if(tr){
+    tr.onmute=()=>diag("⚠ 系统把麦克风静音了：通常是被别的 App 或另一个标签页占用。关掉其他「课堂听译」标签和在用麦克风的 App，再点停止→开始。");
+    if(tr.muted) diag("⚠ 麦克风当前就是静音状态（被占用）。关掉其他在用麦克风的 App/标签，再点停止→开始。");
+  }
   dot.classList.add("on");
-  capSec=0; silentChunks=0; healUsed=false;
+  capSec=0; segCount=0; lastRms=0;
   txStatus();
-  diag("已开始录音。每约 "+CHUNK_SEC+" 秒切一段转写。先对着设备大声说一句俄语，看「当前音量」跳不跳。");
+  diag("已开始（录音通道版）。每约 "+CHUNK_SEC+" 秒录一段、转一段，第一段稍等。");
   clearInterval(capTimer);
-  capTimer=setInterval(async ()=>{
-    if(!wantListen) return;
-    capSec++;
-    if(actx && actx.state==="suspended"){ actx.resume().catch(()=>{}); }
-    if(pcmLen>=TARGET_SR*CHUNK_SEC && !healing){
-      const audio=takePcm();
-      if(audio){
-        const r=bufRms(audio), pk=bufPeak(audio);
-        if(pk<0.002){ silentChunks++; } else { silentChunks=0; }
-        if(silentChunks>=2 && !healUsed){
-          healUsed=true; silentChunks=0;
-          healMic();
-        }else if(pk<0.012 && r<0.0012){
-          diag("刚过去的 "+CHUNK_SEC+" 秒确实没声，已跳过（峰值 "+pk.toFixed(3)+"）。");
-        }else{
-          const g=amplify(audio);
-          if(g>1.6) diag("声音偏小（峰值 "+pk.toFixed(3)+"），已自动放大 ×"+g.toFixed(1)+" 再识别。把设备放近讲台会更准。");
-          enqueueTx(audio);
-        }
-      }
-    }
-    txStatus();
-  },1000);
+  capTimer=setInterval(()=>{ if(wantListen){ capSec++; txStatus(); } },1000);
+  recordLoop();
 }
 function whisperStop(){
   clearInterval(capTimer); capTimer=null;
-  closeMic();
+  if(mrStream){ mrStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); mrStream=null; }
   dot.classList.remove("on");
 }
 
@@ -455,7 +452,7 @@ function armWatchdog(){
   watchdog=setTimeout(()=>{
     if(wantListen && !gotAnyResult){
       setStatus("还没出任何一段","warn");
-      diag("开始 45 秒了还没出字。自查：① 在 Safari 打开；② 说话时「当前音量」会不会离开 0.000x——不动就是麦克风被别的 App/标签占用，先关掉它们再开始。");
+      diag("开始 45 秒了还没出字。看上方灰字：每段录音的 KB 数和峰值都会报——把那一行截图发我，就能定位。");
     }
   },45000);
 }
@@ -490,7 +487,7 @@ $("btnCopy").addEventListener("click", e=>{
 </script>
 <script>
 "use strict";
-/* ================= 麦克风自检：MediaRecorder 录 5 秒 → 回放 ================= */
+/* ================= 麦克风自检：录 5 秒 → 回放 ================= */
 $("btnTest").addEventListener("click", async ()=>{
   const st=$("testStatus"), box=$("testBox"), dg=$("testDiag");
   box.innerHTML=""; dg.textContent="";
@@ -515,7 +512,7 @@ $("btnTest").addEventListener("click", async ()=>{
     box.innerHTML='<audio controls src="'+url+'" style="width:100%"></audio>';
     st.textContent="录完，听回放 ↓";
     dg.textContent="自检结果：录音大小 "+kb+" KB · 麦克风设备："+label+" · 静音状态 muted="+muted+
-      "。回放里能听到你的声音 = 麦克风没问题，是识别通道的事；回放是静音/几乎没声 = 网页拿到的就是静音流（把这行字截图发我）。一般 5 秒说话的录音有几十 KB，若只有个位数 KB 基本就是静音。";
+      "。回放里能听到你的声音 = 麦克风没问题；回放是静音 = 网页拿到的是静音流。一般 5 秒说话的录音有几十 KB。";
   };
   st.textContent="录音中…大声说 5 秒！";
   try{ mr.start(); }catch(e){ dg.textContent="开始录音失败："+e.message; return; }

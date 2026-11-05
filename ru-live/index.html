@@ -254,108 +254,149 @@ function wsStart(){
 }
 function wsStop(){ try{ rec && rec.stop(); }catch(_){} }
 
-/* ================= 引擎 B：Whisper（高准，本机转写） ================= */
-let transcriber=null, whisperLoading=false, mediaStream=null, audioCtx=null;
+/* ================= 引擎 B：Whisper 高准（PCM 直采 + 队列转写） ================= */
+let transcriber=null, whisperLoading=false;
+let micStream=null, actx=null, srcNode=null, procNode=null;
+let pcmParts=[], pcmLen=0, capTimer=null, capSec=0, lastRms=0;
+let txChain=Promise.resolve(), txPending=0, txSkipped=0;
+const TARGET_SR=16000, CHUNK_SEC=10;
 async function loadWhisper(){
   if(transcriber) return true;
   if(whisperLoading) return false;
   whisperLoading=true;
   progEl.style.display="block"; progEl.value=0;
   setStatus("正在下载 Whisper 模型（约 80MB，只下一次）…");
-  diag("模型从 HuggingFace 下载到本机，之后在本机转写、不上传录音。网速慢的话要等 1–3 分钟，别关页面。");
+  diag("模型在本机运行，转写不上传录音。");
   try{
     const mod=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/dist/transformers.min.js");
     mod.env.allowLocalModels=false;
     const onProg=p=>{
       if(p && p.status==="progress" && p.total){
         progEl.value=Math.round(p.loaded/p.total*100);
-        setStatus("下载模型中… "+Math.round(p.loaded/p.total*100)+"%（"+(p.file||"")+"）");
-      }else if(p && p.status==="ready"){ progEl.value=100; }
+        setStatus("下载模型中… "+Math.round(p.loaded/p.total*100)+"%");
+      }
     };
-    const device = (navigator.gpu? "webgpu":"wasm");
-    try{
-      transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:device,progress_callback:onProg});
-    }catch(e1){
-      if(device==="webgpu"){
-        diag("WebGPU 初始化失败，改用 CPU 模式加载…");
-        transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:"wasm",progress_callback:onProg});
-      }else throw e1;
-    }
+    transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:"wasm",progress_callback:onProg});
     progEl.style.display="none";
-    diag("模型就绪 ✓ 之后每次打开会快很多（已缓存）。");
+    diag("模型就绪 ✓");
     return true;
   }catch(e){
     progEl.style.display="none";
     setStatus("模型下载失败","warn");
-    diag("下载/加载失败："+(e && e.message? e.message:e)+"。多半是网络到 CDN/HuggingFace 不通。换网络重试，或先用实时模式顶着。");
+    diag("失败："+(e && e.message? e.message:e)+"。多半是网络到 CDN/HuggingFace 不通，换网络重试或先用实时模式。");
     return false;
   }finally{ whisperLoading=false; }
 }
-function pickMime(){
-  const cands=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus",""];
-  for(const c of cands){ if(!c) return ""; try{ if(MediaRecorder.isTypeSupported(c)) return c; }catch(_){} }
-  return "";
+function downsample(input, inRate){
+  if(inRate===TARGET_SR) return new Float32Array(input);
+  const ratio=inRate/TARGET_SR;
+  const outLen=Math.floor(input.length/ratio);
+  const out=new Float32Array(outLen);
+  for(let i=0;i<outLen;i++){
+    const start=Math.floor(i*ratio), end=Math.min(input.length, Math.floor((i+1)*ratio));
+    let s=0; for(let j=start;j<end;j++) s+=input[j];
+    out[i]=s/Math.max(1,(end-start));
+  }
+  return out;
 }
-function recordChunk(stream, ms){
-  return new Promise(res=>{
-    let mr;
-    try{ const mime=pickMime(); mr=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }
-    catch(e){ res(null); return; }
-    const parts=[];
-    mr.ondataavailable=e=>{ if(e.data && e.data.size) parts.push(e.data); };
-    mr.onstop=()=>res(new Blob(parts,{type:mr.mimeType||"audio/webm"}));
-    try{ mr.start(); }catch(e){ res(null); return; }
-    setTimeout(()=>{ try{ mr.stop(); }catch(_){ res(null); } }, ms);
-  });
+function bufRms(a){ let s=0; for(let i=0;i<a.length;i+=4) s+=a[i]*a[i]; return Math.sqrt(s/Math.max(1,Math.floor(a.length/4))); }
+function takePcm(){
+  if(!pcmLen) return null;
+  const all=new Float32Array(pcmLen);
+  let off=0;
+  for(const part of pcmParts){ all.set(part,off); off+=part.length; }
+  pcmParts=[]; pcmLen=0;
+  return all;
 }
-async function blobToF32(blob){
-  const buf=await blob.arrayBuffer();
-  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-  const decoded=await audioCtx.decodeAudioData(buf.slice(0));
-  const len=Math.max(1,Math.ceil(decoded.duration*16000));
-  const off=new OfflineAudioContext(1,len,16000);
-  const srcNode=off.createBufferSource(); srcNode.buffer=decoded; srcNode.connect(off.destination); srcNode.start();
-  const rendered=await off.startRendering();
-  return rendered.getChannelData(0);
+function levelBars(r){
+  const bars="▁▂▃▄▅▆▇█";
+  const idx=Math.max(0,Math.min(7,Math.floor(r*30)));
+  return bars[idx];
 }
-function rms(a){ let s=0; const step=Math.max(1,Math.floor(a.length/4000)); for(let i=0;i<a.length;i+=step) s+=a[i]*a[i]; return Math.sqrt(s/Math.ceil(a.length/step)); }
+function txStatus(){
+  setStatus("聆听中（高准）· 已录 "+Math.floor(capSec/60)+":"+String(capSec%60).padStart(2,"0")+
+    " · 已出 "+segments.length+" 段"+(txPending? " · 转写中 "+txPending:"")+(txSkipped? " · 已跳过 "+txSkipped+" 段":""), "ok");
+  interimEl.textContent="🎙 当前音量 "+levelBars(lastRms)+"（说话时这个条会动；一直不动就是麦克风没进声）";
+}
+function enqueueTx(audio){
+  if(txPending>=3){ txSkipped++; diag("转写速度跟不上，已跳过较早的 "+txSkipped+" 段音频（不影响继续录音）。"); return; }
+  txPending++;
+  txChain=txChain.then(async()=>{
+    const t0=Date.now();
+    try{
+      const out=await transcriber(audio,{language:"russian",task:"transcribe"});
+      const text=((out && out.text)||"").trim();
+      if(text && !/^\[.*\]$/.test(text) && !/^\(.*\)$/.test(text)) addSegment(text);
+      diag("最近一段转写耗时 "+Math.round((Date.now()-t0)/1000)+" 秒 ✓");
+    }catch(e){
+      diag("转写出错一次："+(e && e.message? e.message:e));
+    }
+    txPending--;
+  }).catch(()=>{ txPending--; });
+}
 async function whisperStart(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     setStatus("当前环境拿不到麦克风","warn");
     diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
     wantListen=false; syncMicUI(); return;
   }
-  const ok=await loadWhisper();
-  if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
   try{
-    mediaStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
   }catch(e){
     setStatus("麦克风被拒绝","warn");
     diag("请在 Safari 设置里允许本页使用麦克风，然后重新开始。");
     wantListen=false; syncMicUI(); return;
   }
-  dot.classList.add("on");
-  setStatus("聆听中（高准模式，每约 12 秒出一段）…","ok");
-  interimEl.textContent="（高准模式：录音转写中，稍等十几秒出第一段…）";
-  while(wantListen){
-    const blob=await recordChunk(mediaStream,12000);
-    if(!wantListen) break;
-    if(!blob || blob.size<2000) continue;
-    let audio;
-    try{ audio=await blobToF32(blob); }catch(e){ diag("音频解码失败一次："+e.message); continue; }
-    if(rms(audio)<0.004){ interimEl.textContent="（安静…继续聆听）"; continue; }
-    interimEl.textContent="（正在转写上一段…）";
-    try{
-      const out=await transcriber(audio,{language:"russian",task:"transcribe"});
-      const text=((out && out.text)||"").trim();
-      if(text && !/^\[.*\]$/.test(text)) addSegment(text);
-      interimEl.textContent="（聆听中…）";
-    }catch(e){ diag("转写出错一次："+(e && e.message? e.message:e)); }
+  const ok=await loadWhisper();
+  if(!ok || !wantListen){ whisperStop(); wantListen=false; syncMicUI(); return; }
+  try{
+    actx=new (window.AudioContext||window.webkitAudioContext)();
+    await actx.resume();
+    srcNode=actx.createMediaStreamSource(micStream);
+    procNode=actx.createScriptProcessor(4096,1,1);
+    const inRate=actx.sampleRate;
+    procNode.onaudioprocess=e=>{
+      if(!wantListen) return;
+      const ch=e.inputBuffer.getChannelData(0);
+      lastRms=bufRms(ch);
+      const ds=downsample(ch, inRate);
+      pcmParts.push(ds); pcmLen+=ds.length;
+    };
+    srcNode.connect(procNode);
+    procNode.connect(actx.destination);
+  }catch(e){
+    setStatus("音频通道建立失败","warn");
+    diag("失败："+(e && e.message? e.message:e));
+    whisperStop(); wantListen=false; syncMicUI(); return;
   }
-  dot.classList.remove("on");
+  dot.classList.add("on");
+  capSec=0; pcmParts=[]; pcmLen=0;
+  txStatus();
+  diag("已开始录音。每约 "+CHUNK_SEC+" 秒切一段转写，第一段约在 "+CHUNK_SEC+" 秒录音 + 转写时间后出现。");
+  clearInterval(capTimer);
+  capTimer=setInterval(()=>{
+    if(!wantListen) return;
+    capSec++;
+    if(actx && actx.state==="suspended"){ actx.resume().catch(()=>{}); }
+    if(pcmLen>=TARGET_SR*CHUNK_SEC){
+      const audio=takePcm();
+      if(audio){
+        if(bufRms(audio)<0.004){ diag("刚过去的 "+CHUNK_SEC+" 秒太安静，已跳过（不算出错）。"); }
+        else enqueueTx(audio);
+      }
+    }
+    txStatus();
+  },1000);
 }
 function whisperStop(){
-  if(mediaStream){ mediaStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); mediaStream=null; }
+  clearInterval(capTimer); capTimer=null;
+  try{ procNode && procNode.disconnect(); }catch(_){}
+  try{ srcNode && srcNode.disconnect(); }catch(_){}
+  try{ actx && actx.close(); }catch(_){}
+  procNode=null; srcNode=null; actx=null;
+  if(micStream){ micStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); micStream=null; }
+  pcmParts=[]; pcmLen=0;
+  dot.classList.remove("on");
 }
 
 /* ================= 统一开关 ================= */
@@ -369,10 +410,10 @@ function armWatchdog(){
   clearTimeout(watchdog);
   watchdog=setTimeout(()=>{
     if(wantListen && !gotAnyResult){
-      setStatus("还没识别到任何声音","warn");
-      diag("开始 30 秒了还没出字。按顺序查：① 在 Safari 里打开（不是 App 内置浏览器）；② 麦克风已允许；③ 离声源近点、大声说一句试试；④ 高准模式下请确认模型已下载完成（看上方状态）。");
+      setStatus("还没出任何一段","warn");
+      diag("开始 45 秒了还没出字。请把这行下面的灰字和状态截图发给王明的 Muse 定位；先自查：① 在 Safari 打开；② 顶部「音量」条说话时会不会动——不动就是麦克风没进声。");
     }
-  },30000);
+  },45000);
 }
 $("btnMic").addEventListener("click", async ()=>{
   if(wantListen){

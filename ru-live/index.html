@@ -20,6 +20,10 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px;
     box-shadow:0 1px 3px rgba(34,26,26,.05)}
   .card h2{font-size:15px;margin:0 0 8px}
+  .banner{background:#fdf3e3;border:1px solid #e8c98a;color:#7a4d12;border-radius:12px;
+    padding:10px 12px;font-size:13px;margin-top:12px;display:none}
+  .banner.show{display:block}
+  .banner b{color:#5f3a08}
   .microw{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   #btnMic{
     border:none;border-radius:999px;padding:14px 26px;font-size:17px;font-weight:700;cursor:pointer;
@@ -31,18 +35,18 @@
   .dot.on{background:#e03131;box-shadow:0 0 8px #e03131}
   .status{font-size:13px;color:var(--mut)}
   .status.warn{color:var(--warn)} .status.ok{color:var(--ok)}
+  .diag{font-size:12px;color:#a08b8b;margin-top:6px;white-space:pre-wrap;word-break:break-all}
   .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
   button.mini{border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:9px;
     padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
   button.mini:active{background:#f6e9e6}
-  select{border:1px solid var(--line);border-radius:8px;padding:6px;font-size:13px;background:#fff;font-family:inherit}
   label.small{font-size:12px;color:var(--mut)}
   #interim{color:#a08b8b;font-style:italic;min-height:24px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:6px}
   .seg{border-top:1px dashed var(--line);padding:8px 0}
   .seg:first-of-type{border-top:none}
   .seg .ru{font-size:14px;color:#6b5a5a}
   .seg .zh{font-size:17px;margin-top:1px}
-  .seg .zh.wait{color:#b9a; font-size:14px}
+  .seg .zh.wait{color:#b9a;font-size:14px}
   #feed{max-height:52vh;overflow-y:auto}
   .sum-item{border-top:1px dashed var(--line);padding:8px 0}
   .sum-item:first-of-type{border-top:none}
@@ -60,12 +64,15 @@
   <h1>课堂听译 · 俄语实时翻译</h1>
   <p class="sub">点「开始听译」，把手机放在桌上：老师讲的俄语会实时转成文字、翻成中文，并滚动总结要点。</p>
 
+  <div class="banner" id="envBanner"></div>
+
   <section class="card">
     <div class="microw">
       <button id="btnMic" type="button">🎙 开始听译</button>
       <span class="dot" id="dot"></span>
       <span class="status" id="status">未开始</span>
     </div>
+    <div class="diag" id="diag"></div>
     <div class="row">
       <label style="display:flex;gap:6px;align-items:center" class="small">
         <input type="checkbox" id="autoScroll" checked> 自动滚动
@@ -77,7 +84,7 @@
       <button class="mini" id="btnCopy" type="button">复制全部记录</button>
       <button class="mini" id="btnClear" type="button">清空</button>
     </div>
-    <p class="small" id="supportNote"></p>
+    <p class="small">iPhone 使用要点：① 必须用 <b>Safari</b> 打开（在 App 里点开的不行，点分享按钮选「在 Safari 中打开」）；② 允许麦克风；③ 系统「设置 → 通用 → 键盘 → 启用听写」要打开；④ 保持屏幕亮着、别切后台。</p>
   </section>
 
   <section class="card">
@@ -99,9 +106,22 @@
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
-const feed=$("feed"), interimEl=$("interim"), statusEl=$("status"), dot=$("dot");
+const feed=$("feed"), interimEl=$("interim"), statusEl=$("status"), dot=$("dot"), diagEl=$("diag");
 function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function setStatus(t,cls){statusEl.textContent=t;statusEl.className="status"+(cls?" "+cls:"");}
+function diag(t){ diagEl.textContent=t; }
+
+/* ---------- 环境自检 ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const banner=$("envBanner");
+function showBanner(html){ banner.innerHTML=html; banner.classList.add("show"); }
+if(!SR){
+  showBanner("⚠ <b>当前打开方式不支持语音识别。</b>你多半是在某个 App 的内置浏览器里打开的。请点页面右上角的分享/菜单按钮，选择<b>「在 Safari 中打开」</b>，再点开始听译。");
+  $("btnMic").disabled=true; setStatus("当前环境不支持识别","warn");
+}else if(isIOS){
+  showBanner("iPhone 提示：识别用的是系统听写。若一直识别不到：到「设置 → 通用 → 键盘」确认<b>「启用听写」</b>已打开，并保持本页在前台、屏幕常亮。");
+}
 
 /* ---------- 句子与总结（本地） ---------- */
 function splitSentences(text){
@@ -127,7 +147,7 @@ function summarize(text,n){
   return {items:top,keywords};
 }
 
-/* ---------- 翻译（队列 + 缓存，避免乱序与重复） ---------- */
+/* ---------- 翻译（队列 + 缓存） ---------- */
 const zhCache=new Map();
 let tQueue=Promise.resolve();
 function translateQueued(text){
@@ -138,7 +158,7 @@ function translateQueued(text){
   return job;
 }
 async function translateRaw(q){
-  if(q.length>420){ // 长句分段
+  if(q.length>420){
     const chunks=[]; let cur="";
     for(const s of splitSentences(q)){ if((cur+" "+s).length>420&&cur){chunks.push(cur);cur=s;} else cur=cur?cur+" "+s:s; }
     if(cur) chunks.push(cur);
@@ -154,8 +174,7 @@ async function translateRaw(q){
 }
 
 /* ---------- 实时记录 ---------- */
-let segments=[]; // {ru, zh}
-let segSinceSum=0;
+let segments=[], segSinceSum=0, gotAnyResult=false, listenStart=0, watchdog=null;
 function addSegment(ru){
   const clean=ru.trim(); if(!clean) return;
   const seg={ru:clean, zh:null}; segments.push(seg);
@@ -184,58 +203,78 @@ async function runSummary(){
   }
 }
 
-/* ---------- 语音识别（Web Speech API） ---------- */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec=null, listening=false, wantListen=false, restartTimer=null;
-if(!SR){
-  $("supportNote").textContent="⚠ 当前浏览器不支持语音识别。请用 Safari（iPhone）或 Chrome 打开本页；若仍不行，可用 iPhone 自带「翻译」App 的对话模式应急。";
-  $("btnMic").disabled=true; setStatus("浏览器不支持语音识别","warn");
-}else{
-  $("supportNote").textContent="提示：iPhone 请用 Safari 打开，并允许麦克风权限；识别偶尔会自己停，本页会自动续上。保持屏幕亮着效果最好。";
-}
+/* ---------- 语音识别：iOS 用逐句模式 + 快速重启，其他平台用连续模式 ---------- */
+let rec=null, wantListen=false, restartTimer=null;
 function startRec(){
-  if(!SR) return;
+  if(!SR || !wantListen) return;
   rec=new SR();
-  rec.lang="ru-RU"; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+  rec.lang="ru-RU";
+  rec.continuous = !isIOS;              // iOS 上 continuous 常导致无结果，改逐句
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
   rec.onresult=e=>{
+    gotAnyResult=true;
     let interim="";
     for(let i=e.resultIndex;i<e.results.length;i++){
       const r=e.results[i];
-      if(r.isFinal){ addSegment(r[0].transcript); }
+      if(r.isFinal) addSegment(r[0].transcript);
       else interim+=r[0].transcript;
     }
     interimEl.textContent=interim||"（聆听中…）";
+    setStatus("聆听中…","ok");
   };
   rec.onerror=e=>{
-    if(e.error==="not-allowed"||e.error==="service-not-allowed"){
-      wantListen=false; listening=false; syncMicUI();
-      setStatus("麦克风被拒绝：请在浏览器设置里允许本页使用麦克风。","warn");
-    } else if(e.error==="network"){
-      setStatus("识别服务网络波动，自动重试中…","warn");
+    const code=e.error||"unknown";
+    if(code==="not-allowed"||code==="service-not-allowed"){
+      wantListen=false; syncMicUI();
+      setStatus("麦克风/听写权限被拒绝","warn");
+      diag("解决：① 确认是用 Safari 打开；② 设置 → Safari → 麦克风 允许；③ 设置 → 通用 → 键盘 → 启用听写 打开。然后重新点开始。");
+      return;
     }
+    if(code==="audio-capture"){ diag("没有检测到麦克风输入，检查一下耳机/麦克风。"); }
+    else if(code==="network"){ diag("识别服务网络波动（错误 network），正在自动重试…"); }
+    else if(code==="no-speech"){ /* 正常，继续 */ }
+    else diag("识别事件："+code+"（已自动处理，继续聆听）");
   };
   rec.onend=()=>{
-    listening=false; dot.classList.remove("on");
+    dot.classList.remove("on");
     if(wantListen){
-      setStatus("识别暂停，正在自动续上…");
       clearTimeout(restartTimer);
-      restartTimer=setTimeout(()=>{ if(wantListen){ try{ startRec(); }catch(_){} } }, 350);
-    } else {
+      restartTimer=setTimeout(()=>{ if(wantListen) startRec(); }, isIOS? 120 : 300);
+    }else{
       setStatus("已停止");
     }
   };
-  try{ rec.start(); listening=true; dot.classList.add("on"); setStatus("聆听中…老师讲的话会实时出现","ok"); }
-  catch(_){ /* 已在运行 */ }
+  try{
+    rec.start();
+    dot.classList.add("on");
+    setStatus("聆听中…对着手机方向说话试试","ok");
+  }catch(_){ /* 实例已在运行，忽略 */ }
+}
+function armWatchdog(){
+  clearTimeout(watchdog);
+  watchdog=setTimeout(()=>{
+    if(wantListen && !gotAnyResult){
+      setStatus("还没识别到任何声音","warn");
+      diag("开始 25 秒了，一句都没识别到。按顺序查：① 本页是不是在 Safari 里打开（不是 App 内置浏览器）；② 设置 → 通用 → 键盘 → 启用听写 已打开；③ 离声源近一点大声说一句俄语试试；④ 关掉 Wi-Fi 用流量或反过来换个网络。若页面顶部有黄色提示，按提示做。");
+    }
+  }, 25000);
 }
 function syncMicUI(){
   $("btnMic").textContent = wantListen? "⏹ 停止听译":"🎙 开始听译";
   $("btnMic").classList.toggle("on", wantListen);
-  if(!wantListen){ dot.classList.remove("on"); }
+  if(!wantListen) dot.classList.remove("on");
 }
 $("btnMic").addEventListener("click", ()=>{
   if(!SR) return;
-  if(wantListen){ wantListen=false; clearTimeout(restartTimer); try{ rec && rec.stop(); }catch(_){} syncMicUI(); setStatus("已停止"); }
-  else{ wantListen=true; syncMicUI(); startRec(); }
+  if(wantListen){
+    wantListen=false; clearTimeout(restartTimer); clearTimeout(watchdog);
+    try{ rec && rec.stop(); }catch(_){}
+    syncMicUI(); setStatus("已停止"); diag("");
+  }else{
+    wantListen=true; gotAnyResult=false; listenStart=Date.now();
+    syncMicUI(); diag(""); startRec(); armWatchdog();
+  }
 });
 $("btnSum").addEventListener("click", runSummary);
 $("btnClear").addEventListener("click", ()=>{

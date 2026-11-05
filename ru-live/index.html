@@ -94,7 +94,7 @@
       <button class="mini" id="btnCopy" type="button">复制全部记录</button>
       <button class="mini" id="btnClear" type="button">清空</button>
     </div>
-    <p class="small">高准模式：Whisper 模型在本机运行，每约 12 秒转写一段，延迟十几秒但俄语准确得多，下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
+    <p class="small">高准模式：Whisper 模型在本机运行，每约 10 秒转写一段，声音小会自动放大再识别，延迟十几秒但俄语准确得多，下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
   </section>
 
   <section class="card">
@@ -300,6 +300,14 @@ function downsample(input, inRate){
   return out;
 }
 function bufRms(a){ let s=0; for(let i=0;i<a.length;i+=4) s+=a[i]*a[i]; return Math.sqrt(s/Math.max(1,Math.floor(a.length/4))); }
+function bufPeak(a){ let p=0; for(let i=0;i<a.length;i+=2){ const v=Math.abs(a[i]); if(v>p) p=v; } return p; }
+function amplify(audio){
+  const pk=bufPeak(audio);
+  if(pk<0.001) return 1;
+  const g=Math.min(0.92/pk, 30);
+  if(g>1.05){ for(let i=0;i<audio.length;i++) audio[i]*=g; }
+  return g;
+}
 function takePcm(){
   if(!pcmLen) return null;
   const all=new Float32Array(pcmLen);
@@ -316,7 +324,7 @@ function levelBars(r){
 function txStatus(){
   setStatus("聆听中（高准）· 已录 "+Math.floor(capSec/60)+":"+String(capSec%60).padStart(2,"0")+
     " · 已出 "+segments.length+" 段"+(txPending? " · 转写中 "+txPending:"")+(txSkipped? " · 已跳过 "+txSkipped+" 段":""), "ok");
-  interimEl.textContent="🎙 当前音量 "+levelBars(lastRms)+"（说话时这个条会动；一直不动就是麦克风没进声）";
+  interimEl.textContent="🎙 当前音量 "+levelBars(lastRms)+" "+lastRms.toFixed(4)+"（说话时会动；一直 0.000x 就是麦克风没进声）";
 }
 function enqueueTx(audio){
   if(txPending>=3){ txSkipped++; diag("转写速度跟不上，已跳过较早的 "+txSkipped+" 段音频（不影响继续录音）。"); return; }
@@ -381,8 +389,14 @@ async function whisperStart(){
     if(pcmLen>=TARGET_SR*CHUNK_SEC){
       const audio=takePcm();
       if(audio){
-        if(bufRms(audio)<0.004){ diag("刚过去的 "+CHUNK_SEC+" 秒太安静，已跳过（不算出错）。"); }
-        else enqueueTx(audio);
+        const r=bufRms(audio), pk=bufPeak(audio);
+        if(pk<0.012 && r<0.0012){
+          diag("刚过去的 "+CHUNK_SEC+" 秒确实没声，已跳过（峰值 "+pk.toFixed(3)+"）。");
+        }else{
+          const g=amplify(audio);
+          if(g>1.6) diag("声音偏小（峰值 "+pk.toFixed(3)+"），已自动放大 ×"+g.toFixed(1)+" 再识别。把设备放近讲台会更准。");
+          enqueueTx(audio);
+        }
       }
     }
     txStatus();

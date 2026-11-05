@@ -254,19 +254,20 @@ function wsStart(){
 }
 function wsStop(){ try{ rec && rec.stop(); }catch(_){} }
 
-/* ================= 引擎 B：Whisper 高准（PCM 直采 + 队列转写） ================= */
+/* ================= 引擎 B：Whisper 高准（PCM 直采 + 队列转写 + 自愈） ================= */
 let transcriber=null, whisperLoading=false;
 let micStream=null, actx=null, srcNode=null, procNode=null;
 let pcmParts=[], pcmLen=0, capTimer=null, capSec=0, lastRms=0;
 let txChain=Promise.resolve(), txPending=0, txSkipped=0;
+let healUsed=false, healing=false, silentChunks=0;
 const TARGET_SR=16000, CHUNK_SEC=10;
 async function loadWhisper(){
   if(transcriber) return true;
   if(whisperLoading) return false;
   whisperLoading=true;
   progEl.style.display="block"; progEl.value=0;
-  setStatus("正在下载 Whisper 模型（约 80MB，只下一次）…");
-  diag("模型在本机运行，转写不上传录音。");
+  setStatus("正在加载 Whisper 模型…");
+  diag("模型在本机运行，转写不上传录音。首次约 80MB，之后走缓存。");
   try{
     const mod=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/dist/transformers.min.js");
     mod.env.allowLocalModels=false;
@@ -342,55 +343,78 @@ function enqueueTx(audio){
     txPending--;
   }).catch(()=>{ txPending--; });
 }
+function closeMic(){
+  try{ procNode && procNode.disconnect(); }catch(_){}
+  try{ srcNode && srcNode.disconnect(); }catch(_){}
+  try{ actx && actx.close(); }catch(_){}
+  procNode=null; srcNode=null; actx=null;
+  if(micStream){ micStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); micStream=null; }
+  pcmParts=[]; pcmLen=0;
+}
+async function openMic(){
+  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
+  const tr=micStream.getAudioTracks()[0];
+  if(tr){
+    tr.onmute=()=>diag("⚠ 系统把麦克风静音了：通常是被别的 App 或另一个标签页占用。关掉其他「课堂听译」标签和在用麦克风的 App（语音类），再点停止→开始。");
+    tr.onunmute=()=>diag("麦克风恢复进声 ✓");
+    if(tr.muted) diag("⚠ 麦克风当前就是静音状态（被占用）。关掉其他在用麦克风的 App/标签，再点停止→开始。");
+  }
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  await actx.resume();
+  srcNode=actx.createMediaStreamSource(micStream);
+  procNode=actx.createScriptProcessor(4096,1,1);
+  const inRate=actx.sampleRate;
+  procNode.onaudioprocess=e=>{
+    if(!wantListen) return;
+    const ch=e.inputBuffer.getChannelData(0);
+    lastRms=bufRms(ch);
+    const ds=downsample(ch, inRate);
+    pcmParts.push(ds); pcmLen+=ds.length;
+  };
+  srcNode.connect(procNode);
+  procNode.connect(actx.destination);
+}
+async function healMic(){
+  if(healing || !wantListen) return;
+  healing=true;
+  diag("连续检测不到声音，正在自动重新获取麦克风…");
+  closeMic();
+  try{ await openMic(); diag("麦克风已重新获取，对着设备说句话看音量条。"); }
+  catch(e){ diag("重新获取麦克风失败："+(e && e.message? e.message:e)+"。请手动点停止→开始。"); }
+  healing=false;
+}
 async function whisperStart(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
     setStatus("当前环境拿不到麦克风","warn");
     diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
     wantListen=false; syncMicUI(); return;
   }
-  try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
-  }catch(e){
+  const ok=await loadWhisper();
+  if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
+  try{ await openMic(); }
+  catch(e){
     setStatus("麦克风被拒绝","warn");
     diag("请在 Safari 设置里允许本页使用麦克风，然后重新开始。");
     wantListen=false; syncMicUI(); return;
   }
-  const ok=await loadWhisper();
-  if(!ok || !wantListen){ whisperStop(); wantListen=false; syncMicUI(); return; }
-  try{
-    actx=new (window.AudioContext||window.webkitAudioContext)();
-    await actx.resume();
-    srcNode=actx.createMediaStreamSource(micStream);
-    procNode=actx.createScriptProcessor(4096,1,1);
-    const inRate=actx.sampleRate;
-    procNode.onaudioprocess=e=>{
-      if(!wantListen) return;
-      const ch=e.inputBuffer.getChannelData(0);
-      lastRms=bufRms(ch);
-      const ds=downsample(ch, inRate);
-      pcmParts.push(ds); pcmLen+=ds.length;
-    };
-    srcNode.connect(procNode);
-    procNode.connect(actx.destination);
-  }catch(e){
-    setStatus("音频通道建立失败","warn");
-    diag("失败："+(e && e.message? e.message:e));
-    whisperStop(); wantListen=false; syncMicUI(); return;
-  }
   dot.classList.add("on");
-  capSec=0; pcmParts=[]; pcmLen=0;
+  capSec=0; silentChunks=0; healUsed=false;
   txStatus();
-  diag("已开始录音。每约 "+CHUNK_SEC+" 秒切一段转写，第一段约在 "+CHUNK_SEC+" 秒录音 + 转写时间后出现。");
+  diag("已开始录音。每约 "+CHUNK_SEC+" 秒切一段转写。先对着设备大声说一句俄语，看「当前音量」跳不跳。");
   clearInterval(capTimer);
-  capTimer=setInterval(()=>{
+  capTimer=setInterval(async ()=>{
     if(!wantListen) return;
     capSec++;
     if(actx && actx.state==="suspended"){ actx.resume().catch(()=>{}); }
-    if(pcmLen>=TARGET_SR*CHUNK_SEC){
+    if(pcmLen>=TARGET_SR*CHUNK_SEC && !healing){
       const audio=takePcm();
       if(audio){
         const r=bufRms(audio), pk=bufPeak(audio);
-        if(pk<0.012 && r<0.0012){
+        if(pk<0.002){ silentChunks++; } else { silentChunks=0; }
+        if(silentChunks>=2 && !healUsed){
+          healUsed=true; silentChunks=0;
+          healMic();
+        }else if(pk<0.012 && r<0.0012){
           diag("刚过去的 "+CHUNK_SEC+" 秒确实没声，已跳过（峰值 "+pk.toFixed(3)+"）。");
         }else{
           const g=amplify(audio);
@@ -404,12 +428,7 @@ async function whisperStart(){
 }
 function whisperStop(){
   clearInterval(capTimer); capTimer=null;
-  try{ procNode && procNode.disconnect(); }catch(_){}
-  try{ srcNode && srcNode.disconnect(); }catch(_){}
-  try{ actx && actx.close(); }catch(_){}
-  procNode=null; srcNode=null; actx=null;
-  if(micStream){ micStream.getTracks().forEach(t=>{ try{t.stop();}catch(_){} }); micStream=null; }
-  pcmParts=[]; pcmLen=0;
+  closeMic();
   dot.classList.remove("on");
 }
 
@@ -425,7 +444,7 @@ function armWatchdog(){
   watchdog=setTimeout(()=>{
     if(wantListen && !gotAnyResult){
       setStatus("还没出任何一段","warn");
-      diag("开始 45 秒了还没出字。请把这行下面的灰字和状态截图发给王明的 Muse 定位；先自查：① 在 Safari 打开；② 顶部「音量」条说话时会不会动——不动就是麦克风没进声。");
+      diag("开始 45 秒了还没出字。自查：① 在 Safari 打开；② 说话时「当前音量」会不会离开 0.000x——不动就是麦克风被别的 App/标签占用，先关掉它们再开始。");
     }
   },45000);
 }

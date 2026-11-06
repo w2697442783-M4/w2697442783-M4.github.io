@@ -87,6 +87,13 @@
         <option value="webspeech">实时 · 浏览器识别（出字快，准确率一般）</option>
       </select>
     </div>
+    <div class="row">
+      <label for="modelSel">Whisper 模型</label>
+      <select id="modelSel">
+        <option value="base" selected>标准 base（快）</option>
+        <option value="small">更准 small（慢，多下约 170MB）</option>
+      </select>
+    </div>
     <div class="microw" style="margin-top:10px">
       <button id="btnMic" type="button">🎙 开始听译</button>
       <span class="dot" id="dot"></span>
@@ -105,7 +112,7 @@
       <button class="mini" id="btnCopy" type="button">复制全部记录</button>
       <button class="mini" id="btnClear" type="button">清空</button>
     </div>
-    <p class="small">高准模式：Whisper 模型在本机运行，每约 10 秒转写一段，声音小会自动放大再识别，延迟十几秒但俄语准确得多，下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
+    <p class="small">高准模式：Whisper 模型在本机运行，每约 15 秒转写一段，声音小会自动放大到正常音量再识别；识别不清就换「更准 small」模型。下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
   </section>
 
   <section class="card">
@@ -266,17 +273,19 @@ function wsStart(){
 function wsStop(){ try{ rec && rec.stop(); }catch(_){} }
 
 /* ================= 引擎 B：Whisper 高准（录音文件通道） ================= */
-let transcriber=null, whisperLoading=false;
+let transcriber=null, whisperLoading=false, loadedModel="";
 let mrStream=null, capTimer=null, capSec=0, lastRms=0, segCount=0, decCtx=null;
 let txChain=Promise.resolve(), txPending=0, txSkipped=0;
-const TARGET_SR=16000, CHUNK_SEC=10;
+const TARGET_SR=16000, CHUNK_SEC=15;
 async function loadWhisper(){
-  if(transcriber) return true;
+  const wantSmall=($("modelSel") && $("modelSel").value==="small");
+  const modelName=wantSmall? "Xenova/whisper-small":"Xenova/whisper-base";
+  if(transcriber && loadedModel===modelName) return true;
   if(whisperLoading) return false;
   whisperLoading=true;
   progEl.style.display="block"; progEl.value=0;
   setStatus("正在加载 Whisper 模型…");
-  diag("模型在本机运行，转写不上传录音。首次约 80MB，之后走缓存。");
+  diag("模型在本机运行，转写不上传录音。"+(wantSmall? "small 约 250MB":"base 约 80MB")+"，之后走缓存。");
   try{
     const mod=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2/dist/transformers.min.js");
     mod.env.allowLocalModels=false;
@@ -286,9 +295,10 @@ async function loadWhisper(){
         setStatus("下载模型中… "+Math.round(p.loaded/p.total*100)+"%");
       }
     };
-    transcriber=await mod.pipeline("automatic-speech-recognition","Xenova/whisper-base",{dtype:"q8",device:"wasm",progress_callback:onProg});
+    transcriber=await mod.pipeline("automatic-speech-recognition",modelName,{dtype:"q8",device:"wasm",progress_callback:onProg});
+    loadedModel=modelName;
     progEl.style.display="none";
-    diag("模型就绪 ✓");
+    diag("模型就绪 ✓（"+(wantSmall? "small":"base")+"）");
     return true;
   }catch(e){
     progEl.style.display="none";
@@ -312,9 +322,10 @@ function downsample(input, inRate){
 function bufRms(a){ let s=0; for(let i=0;i<a.length;i+=4) s+=a[i]*a[i]; return Math.sqrt(s/Math.max(1,Math.floor(a.length/4))); }
 function bufPeak(a){ let p=0; for(let i=0;i<a.length;i+=2){ const v=Math.abs(a[i]); if(v>p) p=v; } return p; }
 function amplify(audio){
-  const pk=bufPeak(audio);
-  if(pk<0.001) return 1;
-  const g=Math.min(0.92/pk, 30);
+  const r=bufRms(audio), pk=bufPeak(audio);
+  if(r<0.0005 || pk<0.001) return 1;
+  let g=Math.min(0.10/r, 40);
+  if(pk*g>0.98) g=0.98/pk;
   if(g>1.05){ for(let i=0;i<audio.length;i++) audio[i]*=g; }
   return g;
 }
@@ -415,7 +426,7 @@ async function whisperStart(){
   const ok=await loadWhisper();
   if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
   try{
-    mrStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}});
+    mrStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
   }catch(e){
     setStatus("麦克风被拒绝","warn");
     diag("请在 Safari 设置里允许本页使用麦克风，然后重新开始。");
@@ -445,6 +456,7 @@ function syncMicUI(){
   $("btnMic").textContent = wantListen? "⏹ 停止听译":"🎙 开始听译";
   $("btnMic").classList.toggle("on", wantListen);
   $("engineSel").disabled = wantListen;
+  if($("modelSel")) $("modelSel").disabled = wantListen;
   if(!wantListen) dot.classList.remove("on");
 }
 function armWatchdog(){

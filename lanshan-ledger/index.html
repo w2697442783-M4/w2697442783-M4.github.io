@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>澜山烘培 · 成本利润台账</title>
+<title>澜山烘培 · 成本利润台账（云端版）</title>
 <meta name="description" content="澜山烘培的成本、定价与每日出品台账：原材料折价、产品成本卡、每日售出与毛利。">
 <style>
   :root{
@@ -74,6 +74,21 @@
   <p>成本、定价、每日出品，一本账记清楚。先把原材料的价格录进来，再给每款产品建一张成本卡，之后每天关店花两分钟记一笔，毛利和剩货自己就会说话。</p>
   <div class="steps"><span>① 原材料折价</span><span>② 产品成本卡</span><span>③ 每日记一笔</span></div>
 </header>
+<div class="card" id="authCard" style="border-color:#d9b96a;background:linear-gradient(160deg,#fffdf6,#fdf3da);">
+  <h2>☁️ 云端账本</h2>
+  <p class="hint">输入一个只有你们俩知道的<b>店铺口令</b>，账就存在云上：换手机、换浏览器，打开这个页面输入同一个口令，账就回来；你在莫斯科输入同一个口令，看到的也是同一本账。第一次输入的口令就是开账口令，一定要记牢，忘了谁也找不回。</p>
+  <div id="authForm">
+    <div class="row">
+      <div><label>店铺口令</label><input id="auPass" type="password" placeholder="想一个好记又不好猜的"></div>
+      <div style="display:flex;align-items:flex-end;"><button onclick="cloudEnter()" style="width:100%;">进入账本</button></div>
+    </div>
+  </div>
+  <div id="authState" style="display:none;">
+    <p class="hint" style="margin-bottom:8px;">云端账本已开启 · 同步状态：<b id="syncState">—</b></p>
+    <div class="toolbar"><button class="ghost small" onclick="cloudSyncNow()">立即同步</button><button class="ghost small" onclick="cloudLogout()">退出（换口令）</button></div>
+  </div>
+</div>
+
 
 <div class="card">
   <h2>📊 总览</h2>
@@ -160,7 +175,7 @@
 const KEY = 'lanshan_ledger_v1';
 let db = load();
 function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {materials:[], products:[], days:[]}; } catch(e){ return {materials:[], products:[], days:[]}; } }
-function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); }
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); if(window.schedulePush) schedulePush(); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function money(n){ return '¥' + (Math.round(n*100)/100).toLocaleString('zh-CN'); }
 function matById(id){ return db.materials.find(m=>m.id===id); }
@@ -305,5 +320,78 @@ document.getElementById('dDate').value = new Date().toISOString().slice(0,10);
 addIngRow();
 render();
 </script>
+<script>
+/* ================= 云端同步层（Cloudflare Worker + KV） ================= */
+const WORKER_URL = "https://lanshan-ledger.w2697442783.workers.dev"; /* 形如 https://lanshan-ledger.xxx.workers.dev，不要带末尾斜杠 */
+const PASS_KEY = "lanshan_passhash_v1";
+let passHash = localStorage.getItem(PASS_KEY) || null;
+let lcDocId = null, pushTimer = null, pushing = false, pushQueued = false;
+
+async function sha256hex(text){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function workerCall(route, payload){
+  const r = await fetch(WORKER_URL + route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ("请求失败 " + r.status));
+  return j;
+}
+function setSync(txt){ const el = document.getElementById("syncState"); if (el) el.textContent = txt; }
+function showAuthState(){
+  const logged = !!passHash;
+  document.getElementById("authForm").style.display = logged ? "none" : "block";
+  document.getElementById("authState").style.display = logged ? "block" : "none";
+}
+async function cloudEnter(){
+  const p = document.getElementById("auPass").value;
+  if (!p || p.length < 4) return alert("口令至少 4 位，想一个只有你们俩知道的");
+  passHash = await sha256hex("lanshan:" + p);
+  localStorage.setItem(PASS_KEY, passHash);
+  showAuthState();
+  const pulled = await cloudPull();
+  if (!pulled) { await pushNow(); alert("这本账已经存上云了。以后在任何手机上打开这个页面、输入同一个口令，就是这本账。"); }
+}
+function cloudLogout(){
+  passHash = null; localStorage.removeItem(PASS_KEY); showAuthState();
+  alert("已退出。云上的账还在，下次输入口令就回来；现在页面上的是本机缓存。");
+}
+async function cloudPull(){
+  if (!passHash) return false;
+  setSync("正在从云上拉账…");
+  try {
+    const j = await workerCall("/pull", { code: passHash });
+    if (j.found && j.payload && j.payload.data){
+      const d = j.payload.data;
+      if (d.materials || d.products || d.days){
+        db = { materials: d.materials || [], products: d.products || [], days: d.days || [] };
+        localStorage.setItem(KEY, JSON.stringify(db)); render();
+      }
+      setSync("已同步 ☁️ " + new Date().toLocaleTimeString());
+      return true;
+    }
+    setSync("云上还没有这个口令的账");
+    return false;
+  } catch(e){ setSync("拉取失败（先用本机这本，联网后点立即同步）"); return false; }
+}
+function schedulePush(){ if (!passHash) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 900); }
+async function pushNow(){
+  if (!passHash) return;
+  if (pushing) { pushQueued = true; return; }
+  pushing = true; setSync("同步中…");
+  try {
+    await workerCall("/push", { code: passHash, data: db });
+    setSync("已同步 ☁️ " + new Date().toLocaleTimeString());
+  } catch(e){ setSync("同步失败，已存在本机，联网后点“立即同步”"); }
+  pushing = false;
+  if (pushQueued) { pushQueued = false; schedulePush(); }
+}
+async function cloudSyncNow(){ if (!passHash) return alert("还没输入口令"); await cloudPull(); await pushNow(); }
+(async function(){
+  showAuthState();
+  if (passHash) await cloudPull();
+})();
+</script>
+
 </body>
 </html>

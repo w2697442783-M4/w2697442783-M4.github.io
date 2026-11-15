@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>澜山烘培 · 成本利润台账</title>
+<meta name="description" content="澜山烘培的成本、定价与每日出品台账：原材料折价、产品成本卡、每日售出与毛利。">
+<style>
+  :root{
+    --cocoa:#3b2416; --coffee:#5a3a22; --caramel:#b4762a; --caramel-d:#96590f;
+    --cream:#faf5ec; --paper:#fffdf8; --line:#eadfce; --line-soft:#f3ead9;
+    --muted:#97835f; --green:#2e7d43; --red:#c0453a;
+    --shadow:0 6px 24px rgba(90,58,34,.08), 0 1px 3px rgba(90,58,34,.06);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:
+    radial-gradient(1200px 500px at 85% -80px, #f3e3c3 0, rgba(243,227,195,0) 60%),
+    radial-gradient(900px 420px at -10% 240px, #f7ecd9 0, rgba(247,236,217,0) 55%),
+    var(--cream);
+    color:#2d2318;padding:0 14px 40px;max-width:880px;margin:0 auto}
+  /* ---------- header ---------- */
+  header{margin:0 -14px 18px;padding:34px 22px 26px;color:#fdf6e9;position:relative;overflow:hidden;
+    background:linear-gradient(135deg,#2e1a0e 0%,#4a2c17 45%,#7a4a1e 80%,#96590f 100%)}
+  header::before{content:"🌾 🥐 🍞 🧈 🥖";position:absolute;right:-6px;top:8px;font-size:26px;letter-spacing:10px;opacity:.22;transform:rotate(-6deg)}
+  header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:linear-gradient(90deg,#d9a441,#f0cd7e,#d9a441)}
+  .brand{font-family:"Songti SC","STSong","SimSun",serif;font-size:30px;font-weight:700;letter-spacing:3px}
+  .brand small{display:block;font-family:inherit;font-size:13px;letter-spacing:6px;font-weight:400;color:#eccf9a;margin-top:5px}
+  header p{margin-top:12px;font-size:13px;line-height:1.75;color:#f3e3c3;max-width:560px}
+  .steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .steps span{font-size:12px;color:#ffe9bd;border:1px solid rgba(255,233,189,.45);border-radius:999px;padding:4px 11px;background:rgba(255,255,255,.06)}
+  /* ---------- cards ---------- */
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:18px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .card h2{font-size:16.5px;display:flex;align-items:center;gap:9px;color:var(--cocoa);margin-bottom:6px}
+  .card h2 .no{width:24px;height:24px;flex:none;border-radius:50%;background:linear-gradient(135deg,var(--caramel),var(--caramel-d));color:#fff;font-size:13px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(150,89,15,.35)}
+  .card p.hint{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.65}
+  label{font-size:12.5px;color:#6b5b45;display:block;margin-bottom:4px;font-weight:500}
+  input,select{width:100%;padding:10px 11px;border:1.5px solid #e0d0ae;border-radius:10px;font-size:15px;background:#fffdf9;color:#2d2318;outline:none;transition:border-color .15s, box-shadow .15s}
+  input:focus,select:focus{border-color:var(--caramel);box-shadow:0 0 0 3px rgba(180,118,42,.16)}
+  input:disabled{background:#f6efe0;color:#97835f}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+  button{background:linear-gradient(135deg,var(--caramel),var(--caramel-d));color:#fff;border:none;padding:11px 18px;border-radius:11px;font-size:14.5px;font-weight:600;cursor:pointer;box-shadow:0 3px 10px rgba(150,89,15,.28);transition:transform .08s, box-shadow .15s}
+  button:active{transform:scale(.97)}
+  button.ghost{background:#f4ecdb;color:#6b5b45;box-shadow:none;border:1px solid var(--line)}
+  button.small{padding:5px 11px;font-size:12.5px;border-radius:8px}
+  button.danger{background:linear-gradient(135deg,#c4534a,#a83a30);box-shadow:0 3px 10px rgba(168,58,48,.25)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
+  th,td{border-bottom:1px solid var(--line-soft);padding:8px 5px;text-align:left;vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.4px}
+  tbody tr:nth-child(even) td{background:#fdfaf3}
+  .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ing-row{display:grid;grid-template-columns:1.4fr 1fr .75fr auto;gap:7px;margin-bottom:7px;align-items:end}
+  /* ---------- stats ---------- */
+  .stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .stat>div{border-radius:14px;padding:13px 8px 11px;text-align:center;background:linear-gradient(160deg,#fdf3df,#f7e8cb);border:1px solid #ecd9ae}
+  .stat b{display:block;font-size:19px;color:var(--caramel-d);font-variant-numeric:tabular-nums}
+  .stat span{font-size:11.5px;color:#8a764f}
+  .good{color:var(--green);font-weight:600}.bad{color:var(--red);font-weight:600}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  details{border:1px solid var(--line-soft);border-radius:12px;padding:9px 11px;margin-top:8px;background:#fffefa}
+  details[open]{background:#fdfaf2}
+  summary{font-size:13.5px;color:var(--coffee);cursor:pointer;line-height:1.6}
+  .empty{color:#b3a58d;font-size:13px;padding:10px 2px}
+  footer{text-align:center;color:#b3a58d;font-size:12px;line-height:1.9;padding:6px 0 2px}
+  footer .flogo{font-family:"Songti SC","STSong",serif;letter-spacing:4px;color:#8a764f;font-size:13px}
+  @media (max-width:560px){.stat{grid-template-columns:1fr 1fr 1fr;gap:7px}.stat b{font-size:15.5px}.row3{grid-template-columns:1fr 1fr}.brand{font-size:26px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">澜山烘培<small>LANSHAN BAKERY · 麻栗坡</small></div>
+  <p>成本、定价、每日出品，一本账记清楚。先把原材料的价格录进来，再给每款产品建一张成本卡，之后每天关店花两分钟记一笔，毛利和剩货自己就会说话。</p>
+  <div class="steps"><span>① 原材料折价</span><span>② 产品成本卡</span><span>③ 每日记一笔</span></div>
+</header>
+
+<div class="card">
+  <h2>📊 总览</h2>
+  <div class="stat">
+    <div><b id="stRevenue">¥0</b><span>累计收入</span></div>
+    <div><b id="stProfit">¥0</b><span>累计毛利</span></div>
+    <div><b id="stWaste">0</b><span>累计剩货（个）</span></div>
+  </div>
+  <p class="hint" style="margin-top:10px;">毛利口径：收入按实际卖出的钱算，成本按<b>出品量</b>算 — 卖不掉剩下的也算成本，这样剩货的损失会自动体现在毛利里。</p>
+</div>
+
+<div class="card">
+  <h2><span class="no">1</span>原材料库</h2>
+  <p class="hint">按采购单填：比如面粉 25 公斤装买了 68 元，就填 买入价 68、买入量 25000、单位 克。系统自动算出每克多少钱；以后涨价了，改这里一次，所有产品成本跟着变。</p>
+  <div class="row3">
+    <div><label>名称</label><input id="mName" placeholder="如：高筋面粉"></div>
+    <div><label>买入价（元）</label><input id="mPrice" type="number" step="0.01" min="0" placeholder="68"></div>
+    <div><label>买入量</label><input id="mQty" type="number" step="0.01" min="0" placeholder="25000"></div>
+  </div>
+  <div class="row">
+    <div><label>单位</label><select id="mUnit"><option>克</option><option>毫升</option><option>个</option></select></div>
+    <div><label>备注（可选）</label><input id="mNote" placeholder="品牌 / 在哪买的"></div>
+  </div>
+  <button onclick="addMaterial()">＋ 添加原材料</button>
+  <div id="materialList"></div>
+</div>
+
+<div class="card">
+  <h2><span class="no">2</span>产品成本卡</h2>
+  <p class="hint">一款产品建一张卡：一批用多少料、一批出几个。系统算出<b>单个成本</b>，对照售价看毛利率，并按目标毛利率给出建议售价 — 定价心里就有底了。</p>
+  <div class="row">
+    <div><label>产品名</label><input id="pName" placeholder="如：原味吐司"></div>
+    <div><label>一批出几个（份）</label><input id="pYield" type="number" step="0.01" min="0" placeholder="10"></div>
+  </div>
+  <div id="ingRows"></div>
+  <button class="ghost small" onclick="addIngRow()">＋ 加一行配料</button>
+  <div class="row3" style="margin-top:12px;">
+    <div><label>包装成本（元/个）</label><input id="pPack" type="number" step="0.01" min="0" value="0"></div>
+    <div><label>现在售价（元/个）</label><input id="pPrice" type="number" step="0.01" min="0" placeholder="12"></div>
+    <div><label>目标毛利率 %</label><input id="pMargin" type="number" step="1" min="0" max="95" value="55"></div>
+  </div>
+  <button onclick="addProduct()">保存产品卡</button>
+  <div id="productList"></div>
+</div>
+
+<div class="card">
+  <h2><span class="no">3</span>每日出品 / 售出记录</h2>
+  <p class="hint">每天关店后记一笔：哪款出了多少、正价卖了多少、打折卖了多少。剩货 = 出品 − 正价售出 − 折价售出，自动算。</p>
+  <div class="row">
+    <div><label>日期</label><input id="dDate" type="date"></div>
+    <div><label>产品</label><select id="dProduct"></select></div>
+  </div>
+  <div class="row3">
+    <div><label>出品量</label><input id="dMade" type="number" step="1" min="0" placeholder="20"></div>
+    <div><label>正价售出量</label><input id="dSold" type="number" step="1" min="0" placeholder="15"></div>
+    <div><label>折价售出量</label><input id="dPromo" type="number" step="1" min="0" value="0"></div>
+  </div>
+  <div class="row">
+    <div><label>折价单价（元，没打折填 0）</label><input id="dPromoPrice" type="number" step="0.01" min="0" value="0"></div>
+    <div style="display:flex;align-items:flex-end;"><button onclick="addDay()" style="width:100%;">记一笔</button></div>
+  </div>
+  <div id="dayList"></div>
+</div>
+
+<div class="card">
+  <h2>💾 数据备份</h2>
+  <p class="hint">数据只存在打开这个页面的手机浏览器里，不上传、不联网。换手机或清理浏览器之前，先导出一份备份存好。</p>
+  <div class="toolbar">
+    <button class="ghost" onclick="exportData()">导出备份</button>
+    <button class="ghost" onclick="document.getElementById('importFile').click()">导入备份</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    <button class="ghost" onclick="loadDemo()">载入示例数据（先看看怎么用）</button>
+    <button class="danger" onclick="clearAll()">清空全部</button>
+  </div>
+  <p class="hint" style="margin-top:9px;">示例数据只是演示，看完点“清空全部”，再填自己的真数。</p>
+</div>
+
+<footer>
+  <div class="flogo">澜 山 烘 培</div>
+  每天现烤 · 账算清，心里稳
+</footer>
+
+<script>
+const KEY = 'lanshan_ledger_v1';
+let db = load();
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {materials:[], products:[], days:[]}; } catch(e){ return {materials:[], products:[], days:[]}; } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function money(n){ return '¥' + (Math.round(n*100)/100).toLocaleString('zh-CN'); }
+function matById(id){ return db.materials.find(m=>m.id===id); }
+function matUnitCost(m){ return m.qty>0 ? m.price/m.qty : 0; }
+function prodById(id){ return db.products.find(p=>p.id===id); }
+function prodUnitCost(p){
+  let batch = 0;
+  p.ings.forEach(i=>{ const m = matById(i.matId); if(m) batch += matUnitCost(m) * i.amount; });
+  return p.yield>0 ? batch/p.yield + (p.pack||0) : 0;
+}
+function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- materials ---------- */
+function addMaterial(){
+  const name = document.getElementById('mName').value.trim();
+  const price = parseFloat(document.getElementById('mPrice').value);
+  const qty = parseFloat(document.getElementById('mQty').value);
+  const unit = document.getElementById('mUnit').value;
+  const note = document.getElementById('mNote').value.trim();
+  if(!name || !(price>=0) || !(qty>0)){ alert('名称、买入价、买入量都要填'); return; }
+  db.materials.push({id:uid(), name, price, qty, unit, note});
+  document.getElementById('mName').value=''; document.getElementById('mPrice').value=''; document.getElementById('mQty').value=''; document.getElementById('mNote').value='';
+  save();
+}
+function delMaterial(id){
+  if(db.products.some(p=>p.ings.some(i=>i.matId===id))){ alert('有产品正在用这个原材料，先改产品卡再删'); return; }
+  db.materials = db.materials.filter(m=>m.id!==id); save();
+}
+
+/* ---------- products ---------- */
+function addIngRow(matId, amount){
+  const wrap = document.getElementById('ingRows');
+  const div = document.createElement('div'); div.className='ing-row';
+  const opts = db.materials.map(m=>'<option value="'+m.id+'"'+(m.id===matId?' selected':'')+'>'+esc(m.name)+'（'+esc(m.unit)+'）</option>').join('');
+  div.innerHTML = '<div><label>原材料</label><select class="ingMat">'+opts+'</select></div>' +
+    '<div><label>一批用量</label><input type="number" step="0.01" min="0" class="ingAmt" value="'+(amount||'')+'" placeholder="500"></div>' +
+    '<div><label>单位</label><input class="ingUnit" disabled value=""></div>' +
+    '<button class="ghost small" onclick="this.parentNode.remove()">删</button>';
+  wrap.appendChild(div);
+  const sel = div.querySelector('.ingMat');
+  const sync = ()=>{ const m = matById(sel.value); div.querySelector('.ingUnit').value = m ? m.unit : ''; };
+  sel.onchange = sync; sync();
+}
+function addProduct(){
+  const name = document.getElementById('pName').value.trim();
+  const yld = parseFloat(document.getElementById('pYield').value);
+  const pack = parseFloat(document.getElementById('pPack').value)||0;
+  const price = parseFloat(document.getElementById('pPrice').value);
+  const margin = parseFloat(document.getElementById('pMargin').value);
+  const ings = [];
+  document.querySelectorAll('.ing-row').forEach(r=>{
+    const matId = r.querySelector('.ingMat').value;
+    const amount = parseFloat(r.querySelector('.ingAmt').value);
+    if(matId && amount>0) ings.push({matId, amount});
+  });
+  if(!name || !(yld>0) || !(price>0) || ings.length===0){ alert('产品名、一批出几个、售价、至少一行配料，都要填'); return; }
+  db.products.push({id:uid(), name, yield:yld, pack, price, margin:isNaN(margin)?55:margin, ings});
+  document.getElementById('pName').value=''; document.getElementById('pYield').value=''; document.getElementById('pPrice').value=''; document.getElementById('ingRows').innerHTML=''; addIngRow();
+  save();
+}
+function delProduct(id){ db.products = db.products.filter(p=>p.id!==id); save(); }
+
+/* ---------- daily ---------- */
+function addDay(){
+  const date = document.getElementById('dDate').value;
+  const pid = document.getElementById('dProduct').value;
+  const made = parseFloat(document.getElementById('dMade').value)||0;
+  const sold = parseFloat(document.getElementById('dSold').value)||0;
+  const promo = parseFloat(document.getElementById('dPromo').value)||0;
+  const promoPrice = parseFloat(document.getElementById('dPromoPrice').value)||0;
+  if(!date || !pid || made<=0){ alert('日期、产品、出品量要填'); return; }
+  if(sold+promo>made){ alert('卖出的比出品的还多，数字对不上'); return; }
+  db.days.push({id:uid(), date, pid, made, sold, promo, promoPrice});
+  save();
+}
+function delDay(id){ db.days = db.days.filter(d=>d.id!==id); save(); }
+
+/* ---------- render ---------- */
+function render(){
+  // materials
+  const ml = document.getElementById('materialList');
+  ml.innerHTML = db.materials.length ? '<table><tr><th>名称</th><th class="num">买入价</th><th class="num">买入量</th><th class="num">折合单价</th><th></th></tr>' +
+    db.materials.map(m=>'<tr><td>'+esc(m.name)+(m.note?'<br><span style="color:#b3a58d;font-size:11px">'+esc(m.note)+'</span>':'')+'</td><td class="num">'+money(m.price)+'</td><td class="num">'+m.qty+m.unit+'</td><td class="num">'+money(matUnitCost(m))+'/'+m.unit+'</td><td><button class="ghost small" onclick="delMaterial(\''+m.id+'\')">删</button></td></tr>').join('') + '</table>'
+    : '<div class="empty">还没有原材料，先把采购价填进来。</div>';
+  // product ing select refresh keeps existing rows; product select for daily
+  const dp = document.getElementById('dProduct');
+  const cur = dp.value;
+  dp.innerHTML = db.products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('');
+  if(cur) dp.value = cur;
+  // products
+  const pl = document.getElementById('productList');
+  pl.innerHTML = db.products.length ? db.products.map(p=>{
+    const uc = prodUnitCost(p);
+    const realMargin = p.price>0 ? (p.price-uc)/p.price*100 : 0;
+    const suggest = p.margin<95 ? uc/(1-p.margin/100) : 0;
+    return '<details><summary><b>'+esc(p.name)+'</b> — 单个成本 '+money(uc)+'｜售价 '+money(p.price)+'｜毛利率 <span class="'+(realMargin>=p.margin?'good':'bad')+'">'+realMargin.toFixed(1)+'%</span>｜目标 '+p.margin+'% 建议售价 '+money(suggest)+'</summary>' +
+      '<table>' + p.ings.map(i=>{ const m=matById(i.matId); return m?'<tr><td>'+esc(m.name)+'</td><td class="num">一批用 '+i.amount+m.unit+'</td><td class="num">'+money(matUnitCost(m)*i.amount)+'</td></tr>':''; }).join('') +
+      '<tr><td>包装</td><td></td><td class="num">'+money(p.pack||0)+'/个</td></tr></table>' +
+      '<div class="toolbar"><button class="ghost small" onclick="delProduct(\''+p.id+'\')">删这张卡</button></div></details>';
+  }).join('') : '<div class="empty">还没有产品卡。</div>';
+  // days
+  const dl = document.getElementById('dayList');
+  const rows = [...db.days].sort((a,b)=> b.date.localeCompare(a.date));
+  dl.innerHTML = rows.length ? '<table><tr><th>日期/产品</th><th class="num">出/卖/折</th><th class="num">剩</th><th class="num">收入</th><th class="num">毛利</th><th></th></tr>' +
+    rows.map(d=>{ const p = prodById(d.pid); if(!p) return '';
+      const uc = prodUnitCost(p);
+      const rev = d.sold*p.price + d.promo*d.promoPrice;
+      const profit = rev - d.made*uc;
+      const left = d.made - d.sold - d.promo;
+      return '<tr><td>'+d.date+'<br>'+esc(p.name)+'</td><td class="num">'+d.made+'/'+d.sold+'/'+d.promo+'</td><td class="num">'+left+'</td><td class="num">'+money(rev)+'</td><td class="num"><span class="'+(profit>=0?'good':'bad')+'">'+money(profit)+'</span></td><td><button class="ghost small" onclick="delDay(\''+d.id+'\')">删</button></td></tr>';
+    }).join('') + '</table>' : '<div class="empty">还没有记录。</div>';
+  // totals
+  let rev=0, cost=0, waste=0;
+  db.days.forEach(d=>{ const p = prodById(d.pid); if(!p) return; rev += d.sold*p.price + d.promo*d.promoPrice; cost += d.made*prodUnitCost(p); waste += d.made - d.sold - d.promo; });
+  document.getElementById('stRevenue').textContent = money(rev);
+  document.getElementById('stProfit').textContent = money(rev-cost);
+  document.getElementById('stWaste').textContent = waste;
+}
+
+/* ---------- data ---------- */
+function exportData(){
+  const blob = new Blob([JSON.stringify(db,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '澜山烘培台账备份.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function importData(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try { const d = JSON.parse(r.result); if(d.materials && d.products && d.days){ db = d; save(); alert('导入完成'); } else alert('这个文件不对'); } catch(e){ alert('导入失败：文件打不开'); } };
+  r.readAsText(f);
+}
+function clearAll(){ if(confirm('确定清空全部数据？建议先导出备份。')){ db = {materials:[], products:[], days:[]}; save(); } }
+function loadDemo(){
+  if(db.materials.length && !confirm('已有数据，载入示例会覆盖，继续？')) return;
+  const m1={id:'dm1',name:'高筋面粉（示例）',price:68,qty:25000,unit:'克',note:''};
+  const m2={id:'dm2',name:'黄油（示例）',price:38,qty:500,unit:'克',note:''};
+  const m3={id:'dm3',name:'白砂糖（示例）',price:22,qty:5000,unit:'克',note:''};
+  const p1={id:'dp1',name:'原味吐司（示例）',yield:10,pack:0.5,price:12,margin:55,ings:[{matId:'dm1',amount:2500},{matId:'dm2',amount:200},{matId:'dm3',amount:250}]};
+  db = {materials:[m1,m2,m3], products:[p1], days:[{id:'dd1',date:new Date().toISOString().slice(0,10),pid:'dp1',made:20,sold:16,promo:2,promoPrice:8}]};
+  save();
+}
+document.getElementById('dDate').value = new Date().toISOString().slice(0,10);
+addIngRow();
+render();
+</script>
+</body>
+</html>

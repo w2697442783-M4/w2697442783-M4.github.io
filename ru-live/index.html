@@ -199,6 +199,11 @@ async function translateRaw(q){
 
 /* ---------- 实时记录 ---------- */
 let segments=[], segSinceSum=0, gotAnyResult=false, watchdog=null;
+const LS_KEY="rulive_v1";
+function persist(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({ts:Date.now(), segments:segments.map(s=>({ru:s.ru, zh:s.zh}))})); }catch(_){}
+}
+window.addEventListener("pagehide", persist);
 function addSegment(ru){
   const clean=ru.trim(); if(!clean) return;
   gotAnyResult=true;
@@ -208,10 +213,29 @@ function addSegment(ru){
   feed.appendChild(div); seg.el=div.querySelector(".zh");
   if($("autoScroll").checked) div.scrollIntoView({behavior:"smooth",block:"end"});
   translateQueued(clean).then(zh=>{
-    seg.zh=zh; seg.el.textContent=zh; seg.el.classList.remove("wait");
+    seg.zh=zh; seg.el.textContent=zh; seg.el.classList.remove("wait"); persist();
   }).catch(e=>{ seg.el.textContent="（翻译失败："+e.message+"）"; });
   segSinceSum++;
+  persist();
   if($("autoSum").checked && segSinceSum>=6){ segSinceSum=0; runSummary(); }
+}
+function restoreSaved(){
+  let data=null;
+  try{ data=JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(_){}
+  if(!data || !Array.isArray(data.segments) || !data.segments.length) return;
+  if(Date.now()-(data.ts||0) > 12*3600*1000) return;
+  for(const s of data.segments){
+    if(!s || !s.ru) continue;
+    const seg={ru:s.ru, zh:s.zh||null}; segments.push(seg);
+    const div=document.createElement("div"); div.className="seg";
+    div.innerHTML='<div class="ru">'+escapeHtml(seg.ru)+'</div><div class="zh'+(seg.zh?"":" wait")+'">'+(seg.zh?escapeHtml(seg.zh):"翻译中…")+'</div>';
+    feed.appendChild(div); seg.el=div.querySelector(".zh");
+    if(!seg.zh){
+      translateQueued(seg.ru).then(zh=>{ seg.zh=zh; seg.el.textContent=zh; seg.el.classList.remove("wait"); persist(); })
+        .catch(()=>{ seg.el.textContent="（翻译失败）"; });
+    }
+  }
+  if(segments.length){ gotAnyResult=true; diag("已恢复上次的 "+segments.length+" 段记录（页面刷新/被系统重开也不会再丢）。不要的话点「清空」。"); if(segments.length>=3) runSummary(); }
 }
 async function runSummary(){
   const full=segments.map(s=>s.ru).join(" ");
@@ -227,6 +251,7 @@ async function runSummary(){
     }catch(e){ const el=box.querySelector('[data-k="'+i+'"]'); if(el) el.textContent="（暂未译出）"; }
   }
 }
+restoreSaved();
 </script>
 <script>
 "use strict";
@@ -487,7 +512,8 @@ $("btnMic").addEventListener("click", async ()=>{
 });
 $("btnSum").addEventListener("click", runSummary);
 $("btnClear").addEventListener("click", ()=>{
-  segments=[]; segSinceSum=0; feed.innerHTML=""; interimEl.textContent="（老师还没开口…）";
+  segments=[]; segSinceSum=0; try{ localStorage.removeItem(LS_KEY); }catch(_){}
+  feed.innerHTML=""; interimEl.textContent="（老师还没开口…）";
   $("sumBox").innerHTML='<p class="small">开始听译后，这里会提炼老师讲的关键句（俄语 + 中文）。</p>'; $("kwBox").innerHTML="";
 });
 $("btnCopy").addEventListener("click", e=>{

@@ -83,7 +83,8 @@
     <div class="row" style="margin-top:0">
       <label class="small" for="engineSel">识别引擎</label>
       <select id="engineSel">
-        <option value="whisper" selected>高准 · Whisper（俄语更准，首次需下载模型）</option>
+        <option value="cloud" selected>云端 · Whisper 大模型（最准，页面不卡，推荐）</option>
+        <option value="whisper">高准 · Whisper 本地（在本机跑模型，iPhone 上易闪退）</option>
         <option value="webspeech">实时 · 浏览器识别（出字快，准确率一般）</option>
       </select>
     </div>
@@ -94,6 +95,11 @@
         <option value="small">更准 small（慢，多下约 170MB）</option>
       </select>
     </div>
+    <div class="row">
+      <label class="small" for="asrUrl">云端转写地址</label>
+      <input type="url" id="asrUrl" placeholder="https://ru-asr.你的账号.workers.dev" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font-size:13px;font-family:inherit">
+    </div>
+    <p class="small">云端模式只需填一次：把部署好的转写服务地址粘进来，页面会记住。本地 Whisper 在 iPhone 上跑容易把页面压垮，只当备用。</p>
     <div class="microw" style="margin-top:10px">
       <button id="btnMic" type="button">🎙 开始听译</button>
       <span class="dot" id="dot"></span>
@@ -112,7 +118,7 @@
       <button class="mini" id="btnCopy" type="button">复制全部记录</button>
       <button class="mini" id="btnClear" type="button">清空</button>
     </div>
-    <p class="small">高准模式：Whisper 模型在本机运行，每约 15 秒转写一段，声音小会自动放大到正常音量再识别；识别不清就换「更准 small」模型。下载一次后可离线识别。实时模式出字快、准确率看系统听写脸色。两种模式都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
+    <p class="small">云端模式：每约 15 秒录一段，发到你自己的 Cloudflare 转写服务用 Whisper 大模型识别，准确率最高、页面不卡（需联网）。本地高准模式在本机跑模型，iPhone 上容易闪退，好在记录会自动保存、刷新后恢复。实时模式出字快、准确率看系统听写脸色。都要求：用 <b>Safari</b> 打开、允许麦克风、屏幕常亮。</p>
   </section>
 
   <section class="card">
@@ -360,8 +366,9 @@ function levelBars(r){
   return bars[idx];
 }
 function txStatus(){
-  setStatus("聆听中（高准）· 已录 "+Math.floor(capSec/60)+":"+String(capSec%60).padStart(2,"0")+
-    " · 已出 "+segments.length+" 段"+(txPending? " · 转写中 "+txPending:"")+(txSkipped? " · 已跳过 "+txSkipped+" 段":""), "ok");
+  const pend = captureMode==="cloud"? cloudPending : txPending;
+  setStatus("聆听中（"+(captureMode==="cloud"?"云端":"高准")+"）· 已录 "+Math.floor(capSec/60)+":"+String(capSec%60).padStart(2,"0")+
+    " · 已出 "+segments.length+" 段"+(pend? " · 转写中 "+pend:"")+(txSkipped? " · 已跳过 "+txSkipped+" 段":""), "ok");
   interimEl.textContent="🎙 最近一段音量 "+levelBars(lastRms)+" "+lastRms.toFixed(4);
 }
 function enqueueTx(audio){
@@ -379,6 +386,38 @@ function enqueueTx(audio){
     }
     txPending--;
   }).catch(()=>{ txPending--; });
+}
+/* ---------- 云端转写（发到自己的 Cloudflare Worker，Whisper 大模型） ---------- */
+let captureMode="local", cloudChain=Promise.resolve(), cloudPending=0;
+function asrEndpoint(){ const el=$("asrUrl"); const v=(el && el.value || "").trim(); return v.replace(/\/+$/,""); }
+function encodeWav(samples, sr){
+  const buf=new ArrayBuffer(44+samples.length*2), v=new DataView(buf);
+  const wstr=(o,s)=>{ for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  wstr(0,"RIFF"); v.setUint32(4, 36+samples.length*2, true); wstr(8,"WAVE"); wstr(12,"fmt ");
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true);
+  v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); wstr(36,"data");
+  v.setUint32(40, samples.length*2, true);
+  for(let i=0;i<samples.length;i++){ const s=Math.max(-1,Math.min(1,samples[i])); v.setInt16(44+i*2, s<0? s*0x8000 : s*0x7FFF, true); }
+  return new Blob([buf], {type:"audio/wav"});
+}
+function enqueueCloud(audio, n){
+  if(cloudPending>=4){ txSkipped++; diag("云端转写排队太多，已跳过较早的 "+txSkipped+" 段（不影响继续录音）。"); return; }
+  cloudPending++;
+  const wav=encodeWav(audio, TARGET_SR);
+  cloudChain=cloudChain.then(async()=>{
+    const t0=Date.now();
+    try{
+      const r=await fetch(asrEndpoint(), {method:"POST", headers:{"Content-Type":"audio/wav","X-ASR-Token":"mingming-ru-live"}, body:wav});
+      const d=await r.json().catch(()=>null);
+      if(!r.ok) throw new Error((d && d.error) || ("HTTP "+r.status));
+      const text=((d && d.text)||"").trim();
+      if(text && !/^\[.*\]$/.test(text) && !/^\(.*\)$/.test(text)) addSegment(text);
+      diag("第 "+n+" 段云端转写耗时 "+Math.round((Date.now()-t0)/1000)+" 秒 ✓");
+    }catch(e){
+      diag("第 "+n+" 段云端转写失败："+(e && e.message? e.message:e)+"（检查转写地址和网络）");
+    }
+    cloudPending--;
+  }).catch(()=>{ cloudPending--; });
 }
 function pickMime(){
   const cands=["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/ogg;codecs=opus",""];
@@ -430,8 +469,8 @@ async function handleBlob(blob, n){
     return;
   }
   const g=amplify(audio);
-  diag("第 "+n+" 段：录音 "+kb+"KB · 峰值 "+pk.toFixed(3)+(g>1.6? " · 已放大 ×"+g.toFixed(1):"")+" · 转写中…");
-  enqueueTx(audio);
+  diag("第 "+n+" 段：录音 "+kb+"KB · 峰值 "+pk.toFixed(3)+(g>1.6? " · 已放大 ×"+g.toFixed(1):"")+(captureMode==="cloud"?" · 发云端转写中…":" · 转写中…"));
+  if(captureMode==="cloud") enqueueCloud(audio, n); else enqueueTx(audio);
 }
 async function recordLoop(){
   while(wantListen){
@@ -448,8 +487,28 @@ async function whisperStart(){
     diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
     wantListen=false; syncMicUI(); return;
   }
+  captureMode="local";
   const ok=await loadWhisper();
   if(!ok || !wantListen){ wantListen=false; syncMicUI(); return; }
+  diag("已开始（本地高准版）。每约 "+CHUNK_SEC+" 秒录一段、转一段，第一段稍等。");
+  await beginCapture();
+}
+async function cloudStart(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder==="undefined"){
+    setStatus("当前环境不支持录音通道","warn");
+    diag("多半是在 App 内置浏览器里打开的。请点指南针图标，在 Safari 里打开本页。");
+    wantListen=false; syncMicUI(); return;
+  }
+  if(!asrEndpoint()){
+    setStatus("还没填云端转写地址","warn");
+    diag("先把部署好的转写服务地址粘到上方「云端转写地址」框里，再点开始。还没有服务？跟明明说一声，用你的 Cloudflare 账号部署一次就行（和澜山账本那次一样）。");
+    wantListen=false; syncMicUI(); return;
+  }
+  captureMode="cloud";
+  diag("已开始（云端版）。每约 "+CHUNK_SEC+" 秒录一段、发云端转一段，第一段稍等。");
+  await beginCapture();
+}
+async function beginCapture(){
   try{
     mrStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
   }catch(e){
@@ -465,7 +524,6 @@ async function whisperStart(){
   dot.classList.add("on");
   capSec=0; segCount=0; lastRms=0;
   txStatus();
-  diag("已开始（录音通道版）。每约 "+CHUNK_SEC+" 秒录一段、转一段，第一段稍等。");
   clearInterval(capTimer);
   capTimer=setInterval(()=>{ if(wantListen){ capSec++; txStatus(); } },1000);
   recordLoop();
@@ -482,6 +540,7 @@ function syncMicUI(){
   $("btnMic").classList.toggle("on", wantListen);
   $("engineSel").disabled = wantListen;
   if($("modelSel")) $("modelSel").disabled = wantListen;
+  if($("asrUrl")) $("asrUrl").disabled = wantListen;
   if(!wantListen) dot.classList.remove("on");
 }
 function armWatchdog(){
@@ -504,12 +563,18 @@ $("btnMic").addEventListener("click", async ()=>{
   wantListen=true; gotAnyResult=false;
   syncMicUI(); diag("");
   const engine=$("engineSel").value;
-  if(engine==="whisper"){ armWatchdog(); await whisperStart(); if(!wantListen) syncMicUI(); }
+  if(engine==="cloud"){ armWatchdog(); await cloudStart(); if(!wantListen) syncMicUI(); }
+  else if(engine==="whisper"){ armWatchdog(); await whisperStart(); if(!wantListen) syncMicUI(); }
   else{
     if(!SR){ showBanner("⚠ 当前浏览器不支持「实时模式」。请改用<b>高准 · Whisper</b> 模式，或用 Safari 打开本页。"); wantListen=false; syncMicUI(); return; }
     armWatchdog(); wsStart();
   }
 });
+(function(){
+  const el=$("asrUrl"); if(!el) return;
+  try{ el.value=localStorage.getItem("rulive_asr_url")||""; }catch(_){}
+  el.addEventListener("change", ()=>{ try{ localStorage.setItem("rulive_asr_url", el.value.trim()); }catch(_){} });
+})();
 $("btnSum").addEventListener("click", runSummary);
 $("btnClear").addEventListener("click", ()=>{
   segments=[]; segSinceSum=0; try{ localStorage.removeItem(LS_KEY); }catch(_){}

@@ -53,6 +53,7 @@
   .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   .ing-row{display:grid;grid-template-columns:1.4fr 1fr .75fr auto;gap:7px;margin-bottom:7px;align-items:end}
   .fill-row{display:grid;grid-template-columns:1.4fr 1fr .75fr auto;gap:7px;margin-bottom:7px;align-items:end}
+  .dough-row{display:grid;grid-template-columns:1.4fr 1fr .75fr auto;gap:7px;margin-bottom:7px;align-items:end}
   .mini-title{font-size:13.5px;font-weight:700;color:var(--coffee);margin:13px 0 4px}
   /* ---------- stats ---------- */
   .stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
@@ -74,7 +75,7 @@
 <header>
   <div class="brand">澜山烘培<small>LANSHAN BAKERY · 麻栗坡</small></div>
   <p>成本、定价、每日出品，一本账记清楚。先把原材料的价格录进来，再给每款产品建一张成本卡，之后每天关店花两分钟记一笔，毛利和剩货自己就会说话。</p>
-  <div class="steps"><span>① 原材料折价</span><span>② 馅料配比</span><span>③ 产品成本卡</span><span>④ 每日记一笔</span></div>
+  <div class="steps"><span>① 原材料折价</span><span>② 馅料配比</span><span>③ 面团配比</span><span>④ 组合成产品</span><span>⑤ 每日记一笔</span></div>
 </header>
 <div class="card" id="authCard" style="border-color:#d9b96a;background:linear-gradient(160deg,#fffdf6,#fdf3da);">
   <h2>☁️ 云端账本</h2>
@@ -134,18 +135,39 @@
 </div>
 
 <div class="card">
-  <h2><span class="no">3</span>产品成本卡</h2>
-  <p class="hint">一款产品建一张卡：一批用多少料、一批出几个。系统算出<b>单个成本</b>，对照售价看毛利率，并按目标毛利率给出建议售价 — 定价心里就有底了。</p>
+  <h2><span class="no">3</span>面团板块</h2>
+  <p class="hint">面团和馅料一样，也是先做好的半成品。先在这里按<b>原材料 + 配比</b>建好一款面团：系统会算出一批多少钱、每克多少钱。同一个面团换不同馅，就是不同产品 — 面团只建一次，后面组合就行。</p>
+  <div class="row3">
+    <div><label>面团名</label><input id="dgName" placeholder="如：甜面包面团"></div>
+    <div><label>一批做好后有多少</label><input id="dgOutQty" type="number" step="0.01" min="0" placeholder="1250"></div>
+    <div><label>单位</label><select id="dgOutUnit"><option>克</option><option>毫升</option><option>个</option></select></div>
+  </div>
+  <div id="dgIngRows"></div>
+  <button class="ghost small" onclick="addDoughIngRow()">＋ 加一行原料</button>
+  <p class="hint" style="margin:9px 0;">配比用量尽量都按克填；“一批做好后有多少”不填，就按配料总重估算（发酵、分割有损耗时，填实际量更准）。</p>
+  <button onclick="addDough()">保存面团</button>
+  <div id="doughList"></div>
+</div>
+
+<div class="card">
+  <h2><span class="no">4</span>产品成本卡（组合）</h2>
+  <p class="hint">最后一步只是<b>组合</b>：选面团 + 选馅料 + 填一批用量，就是一款产品。同一个面团换个馅，就是另一款，面团和馅都不用重建。系统算出<b>单个成本</b>，对照售价看毛利率，并按目标毛利率给出建议售价。</p>
   <div class="row">
     <div><label>产品名</label><input id="pName" placeholder="如：原味吐司"></div>
     <div><label>一批出几个（份）</label><input id="pYield" type="number" step="0.01" min="0" placeholder="10"></div>
   </div>
-  <div id="ingRows"></div>
-  <button class="ghost small" onclick="addIngRow()">＋ 加一行配料</button>
+  <div class="mini-title">面团</div>
+  <p class="hint" style="margin-bottom:8px;">选这款产品用的面团，填“一批一共用多少”。比如每个面团 50 克、一批出 20 个，就填 1000 克。</p>
+  <div id="doughRows"></div>
+  <button class="ghost small" onclick="addDoughRow()">＋ 加一行面团</button>
   <div class="mini-title">馅料（可选）</div>
   <p class="hint" style="margin-bottom:8px;">这款产品如果包馅，就在这里选馅料，填“一批一共用多少”。比如每个用 30 克、一批出 20 个，就填 600 克。系统会按馅料成本自动算进单个成本。</p>
   <div id="fillRows"></div>
   <button class="ghost small" onclick="addFillRow()">＋ 加一行馅料</button>
+  <div class="mini-title">其他配料（可选）</div>
+  <p class="hint" style="margin-bottom:8px;">面团和馅之外的零碎配料（比如表面刷的蛋液、撒的芝麻）直接在这里选原材料填，没有就不加。</p>
+  <div id="ingRows"></div>
+  <button class="ghost small" onclick="addIngRow()">＋ 加一行配料</button>
   <div class="row3" style="margin-top:12px;">
     <div><label>包装成本（元/个）</label><input id="pPack" type="number" step="0.01" min="0" value="0"></div>
     <div><label>现在售价（元/个）</label><input id="pPrice" type="number" step="0.01" min="0" placeholder="12"></div>
@@ -156,7 +178,7 @@
 </div>
 
 <div class="card">
-  <h2><span class="no">4</span>每日出品 / 售出记录</h2>
+  <h2><span class="no">5</span>每日出品 / 售出记录</h2>
   <p class="hint">每天关店后记一笔：哪款出了多少、正价卖了多少、打折卖了多少。剩货 = 出品 − 正价售出 − 折价售出，自动算。</p>
   <div class="row">
     <div><label>日期</label><input id="dDate" type="date"></div>
@@ -195,7 +217,7 @@
 <script>
 const KEY = 'lanshan_ledger_v1';
 let db = load();
-function normalizeDb(d){ d = d || {}; return { materials: d.materials || [], fillings: d.fillings || [], products: (d.products || []).map(p=>Object.assign({fillings:[]}, p)), days: d.days || [] }; }
+function normalizeDb(d){ d = d || {}; return { materials: d.materials || [], fillings: d.fillings || [], doughs: d.doughs || [], products: (d.products || []).map(p=>Object.assign({fillings:[], doughs:[]}, p)), days: d.days || [] }; }
 function load(){ try { return normalizeDb(JSON.parse(localStorage.getItem(KEY))); } catch(e){ return normalizeDb(null); } }
 function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); if(window.schedulePush) schedulePush(); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -206,11 +228,16 @@ function fillById(id){ return (db.fillings||[]).find(f=>f.id===id); }
 function fillingBatchCost(f){ let total = 0; (f.ings||[]).forEach(i=>{ const m = matById(i.matId); if(m) total += matUnitCost(m) * i.amount; }); return total; }
 function fillingOutQty(f){ if(f.outQty>0) return f.outQty; return (f.ings||[]).reduce((sum,i)=>sum + (parseFloat(i.amount)||0), 0); }
 function fillingUnitCost(f){ const q = fillingOutQty(f); return q>0 ? fillingBatchCost(f)/q : 0; }
+function doughById(id){ return (db.doughs||[]).find(f=>f.id===id); }
+function doughBatchCost(f){ let total = 0; (f.ings||[]).forEach(i=>{ const m = matById(i.matId); if(m) total += matUnitCost(m) * i.amount; }); return total; }
+function doughOutQtyCalc(f){ if(f.outQty>0) return f.outQty; return (f.ings||[]).reduce((sum,i)=>sum + (parseFloat(i.amount)||0), 0); }
+function doughUnitCost(f){ const q = doughOutQtyCalc(f); return q>0 ? doughBatchCost(f)/q : 0; }
 function prodById(id){ return db.products.find(p=>p.id===id); }
 function prodUnitCost(p){
   let batch = 0;
   p.ings.forEach(i=>{ const m = matById(i.matId); if(m) batch += matUnitCost(m) * i.amount; });
   (p.fillings||[]).forEach(i=>{ const f = fillById(i.fillingId); if(f) batch += fillingUnitCost(f) * i.amount; });
+  (p.doughs||[]).forEach(i=>{ const f = doughById(i.doughId); if(f) batch += doughUnitCost(f) * i.amount; });
   return p.yield>0 ? batch/p.yield + (p.pack||0) : 0;
 }
 function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -228,7 +255,7 @@ function addMaterial(){
   save();
 }
 function delMaterial(id){
-  if(db.products.some(p=>p.ings.some(i=>i.matId===id)) || (db.fillings||[]).some(f=>f.ings.some(i=>i.matId===id))){ alert('有产品或馅料正在用这个原材料，先改掉再删'); return; }
+  if(db.products.some(p=>p.ings.some(i=>i.matId===id)) || (db.fillings||[]).some(f=>f.ings.some(i=>i.matId===id)) || (db.doughs||[]).some(f=>f.ings.some(i=>i.matId===id))){ alert('有产品或馅料正在用这个原材料，先改掉再删'); return; }
   db.materials = db.materials.filter(m=>m.id!==id); save();
 }
 
@@ -267,6 +294,41 @@ function delFilling(id){
   db.fillings = db.fillings.filter(f=>f.id!==id); save();
 }
 
+/* ---------- doughs ---------- */
+function addDoughIngRow(matId, amount){
+  const wrap = document.getElementById('dgIngRows');
+  const div = document.createElement('div'); div.className='ing-row dg-ing-row';
+  const opts = db.materials.map(m=>'<option value="'+m.id+'"'+(m.id===matId?' selected':'')+'>'+esc(m.name)+'（'+esc(m.unit)+'）</option>').join('');
+  div.innerHTML = '<div><label>原材料</label><select class="dgIngMat">'+opts+'</select></div>' +
+    '<div><label>一批用量</label><input type="number" step="0.01" min="0" class="dgIngAmt" value="'+(amount||'')+'" placeholder="1000"></div>' +
+    '<div><label>单位</label><input class="dgIngUnit" disabled value=""></div>' +
+    '<button class="ghost small" onclick="this.parentNode.remove()">删</button>';
+  wrap.appendChild(div);
+  const sel = div.querySelector('.dgIngMat');
+  const sync = ()=>{ const m = matById(sel.value); div.querySelector('.dgIngUnit').value = m ? m.unit : ''; };
+  sel.onchange = sync; sync();
+}
+function addDough(){
+  const name = document.getElementById('dgName').value.trim();
+  const outQty = parseFloat(document.getElementById('dgOutQty').value)||0;
+  const outUnit = document.getElementById('dgOutUnit').value;
+  const ings = [];
+  document.querySelectorAll('.dg-ing-row').forEach(r=>{
+    const matId = r.querySelector('.dgIngMat').value;
+    const amount = parseFloat(r.querySelector('.dgIngAmt').value);
+    if(matId && amount>0) ings.push({matId, amount});
+  });
+  if(!name || ings.length===0){ alert('面团名、至少一行原料配比，都要填'); return; }
+  if(!db.doughs) db.doughs = [];
+  db.doughs.push({id:uid(), name, outQty, outUnit, ings});
+  document.getElementById('dgName').value=''; document.getElementById('dgOutQty').value=''; document.getElementById('dgIngRows').innerHTML=''; addDoughIngRow();
+  save();
+}
+function delDough(id){
+  if(db.products.some(p=>(p.doughs||[]).some(i=>i.doughId===id))){ alert('有产品正在用这个面团，先改产品卡再删'); return; }
+  db.doughs = db.doughs.filter(f=>f.id!==id); save();
+}
+
 /* ---------- products ---------- */
 function addIngRow(matId, amount){
   const wrap = document.getElementById('ingRows');
@@ -295,9 +357,15 @@ function addFillRow(fillingId, amount){
   sel.onchange = sync; sync();
 }
 function refreshDynamicSelects(){
-  document.querySelectorAll('.ingMat, .fIngMat').forEach(sel=>{
+  document.querySelectorAll('.ingMat, .fIngMat, .dgIngMat').forEach(sel=>{
     const cur = sel.value;
     sel.innerHTML = db.materials.map(m=>'<option value="'+m.id+'">'+esc(m.name)+'（'+esc(m.unit)+'）</option>').join('');
+    if(cur) sel.value = cur;
+    if(sel.onchange) sel.onchange();
+  });
+  document.querySelectorAll('.doughSel').forEach(sel=>{
+    const cur = sel.value;
+    sel.innerHTML = (db.doughs||[]).map(f=>'<option value="'+f.id+'">'+esc(f.name)+'（'+esc(f.outUnit||'克')+'）</option>').join('');
     if(cur) sel.value = cur;
     if(sel.onchange) sel.onchange();
   });
@@ -307,6 +375,19 @@ function refreshDynamicSelects(){
     if(cur) sel.value = cur;
     if(sel.onchange) sel.onchange();
   });
+}
+function addDoughRow(doughId, amount){
+  const wrap = document.getElementById('doughRows'); if(!wrap) return;
+  const div = document.createElement('div'); div.className='dough-row';
+  const opts = (db.doughs||[]).map(f=>'<option value="'+f.id+'"'+(f.id===doughId?' selected':'')+'>'+esc(f.name)+'（'+esc(f.outUnit||'克')+'）</option>').join('');
+  div.innerHTML = '<div><label>面团</label><select class="doughSel">'+opts+'</select></div>' +
+    '<div><label>一批用量</label><input type="number" step="0.01" min="0" class="doughAmt" value="'+(amount||'')+'" placeholder="1000"></div>' +
+    '<div><label>单位</label><input class="doughUnit" disabled value=""></div>' +
+    '<button class="ghost small" onclick="this.parentNode.remove()">删</button>';
+  wrap.appendChild(div);
+  const sel = div.querySelector('.doughSel');
+  const sync = ()=>{ const f = doughById(sel.value); div.querySelector('.doughUnit').value = f ? (f.outUnit||'克') : ''; };
+  sel.onchange = sync; sync();
 }
 function addProduct(){
   const name = document.getElementById('pName').value.trim();
@@ -320,15 +401,21 @@ function addProduct(){
     const amount = parseFloat(r.querySelector('.ingAmt').value);
     if(matId && amount>0) ings.push({matId, amount});
   });
+  const doughs = [];
+  document.querySelectorAll('.dough-row').forEach(r=>{
+    const doughId = r.querySelector('.doughSel').value;
+    const amount = parseFloat(r.querySelector('.doughAmt').value);
+    if(doughId && amount>0) doughs.push({doughId, amount});
+  });
   const fills = [];
   document.querySelectorAll('.fill-row').forEach(r=>{
     const fillingId = r.querySelector('.fillSel').value;
     const amount = parseFloat(r.querySelector('.fillAmt').value);
     if(fillingId && amount>0) fills.push({fillingId, amount});
   });
-  if(!name || !(yld>0) || !(price>0) || (ings.length===0 && fills.length===0)){ alert('产品名、一批出几个、售价、至少一行配料或馅料，都要填'); return; }
-  db.products.push({id:uid(), name, yield:yld, pack, price, margin:isNaN(margin)?55:margin, ings, fillings:fills});
-  document.getElementById('pName').value=''; document.getElementById('pYield').value=''; document.getElementById('pPrice').value=''; document.getElementById('ingRows').innerHTML=''; addIngRow(); document.getElementById('fillRows').innerHTML=''; addFillRow();
+  if(!name || !(yld>0) || !(price>0) || (ings.length===0 && fills.length===0 && doughs.length===0)){ alert('产品名、一批出几个、售价、至少选一样（面团、馅料或其他配料），都要填'); return; }
+  db.products.push({id:uid(), name, yield:yld, pack, price, margin:isNaN(margin)?55:margin, ings, fillings:fills, doughs});
+  document.getElementById('pName').value=''; document.getElementById('pYield').value=''; document.getElementById('pPrice').value=''; document.getElementById('ingRows').innerHTML=''; addIngRow(); document.getElementById('fillRows').innerHTML=''; addFillRow(); document.getElementById('doughRows').innerHTML=''; addDoughRow();
   save();
 }
 function delProduct(id){ db.products = db.products.filter(p=>p.id!==id); save(); }
@@ -366,6 +453,16 @@ function render(){
         '<div class="toolbar"><button class="ghost small" onclick="delFilling(\''+f.id+'\')">删这个馅料</button></div></details>';
     }).join('') : '<div class="empty">还没有馅料。先建一个馅，产品成本卡里就能直接选。</div>';
   }
+  // doughs
+  const dgl = document.getElementById('doughList');
+  if(dgl){
+    dgl.innerHTML = (db.doughs && db.doughs.length) ? db.doughs.map(f=>{
+      const bc = doughBatchCost(f); const oq = doughOutQtyCalc(f); const uc = doughUnitCost(f); const unit = f.outUnit||'克';
+      return '<details><summary><b>'+esc(f.name)+'</b> — 一批成本 '+money(bc)+'｜出 '+oq+unit+'｜每'+unit+' '+money(uc)+'</summary>' +
+        '<table>' + (f.ings||[]).map(i=>{ const m=matById(i.matId); return m?'<tr><td>'+esc(m.name)+'</td><td class="num">一批用 '+i.amount+m.unit+'</td><td class="num">'+money(matUnitCost(m)*i.amount)+'</td></tr>':''; }).join('') + '</table>' +
+        '<div class="toolbar"><button class="ghost small" onclick="delDough(\''+f.id+'\')">删这个面团</button></div></details>';
+    }).join('') : '<div class="empty">还没有面团。先建一款面团，产品里就能直接选来组合。</div>';
+  }
   // product ing select refresh keeps existing rows; product select for daily
   const dp = document.getElementById('dProduct');
   const cur = dp.value;
@@ -379,6 +476,7 @@ function render(){
     const suggest = p.margin<95 ? uc/(1-p.margin/100) : 0;
     return '<details><summary><b>'+esc(p.name)+'</b> — 单个成本 '+money(uc)+'｜售价 '+money(p.price)+'｜毛利率 <span class="'+(realMargin>=p.margin?'good':'bad')+'">'+realMargin.toFixed(1)+'%</span>｜目标 '+p.margin+'% 建议售价 '+money(suggest)+'</summary>' +
       '<table>' + p.ings.map(i=>{ const m=matById(i.matId); return m?'<tr><td>'+esc(m.name)+'</td><td class="num">一批用 '+i.amount+m.unit+'</td><td class="num">'+money(matUnitCost(m)*i.amount)+'</td></tr>':''; }).join('') +
+      (p.doughs||[]).map(i=>{ const f=doughById(i.doughId); return f?'<tr><td>面团：'+esc(f.name)+'</td><td class="num">一批用 '+i.amount+(f.outUnit||'克')+'</td><td class="num">'+money(doughUnitCost(f)*i.amount)+'</td></tr>':''; }).join('') +
       (p.fillings||[]).map(i=>{ const f=fillById(i.fillingId); return f?'<tr><td>馅料：'+esc(f.name)+'</td><td class="num">一批用 '+i.amount+(f.outUnit||'克')+'</td><td class="num">'+money(fillingUnitCost(f)*i.amount)+'</td></tr>':''; }).join('') +
       '<tr><td>包装</td><td></td><td class="num">'+money(p.pack||0)+'/个</td></tr></table>' +
       '<div class="toolbar"><button class="ghost small" onclick="delProduct(\''+p.id+'\')">删这张卡</button></div></details>';
@@ -413,7 +511,7 @@ function importData(ev){
   r.onload = ()=>{ try { const d = JSON.parse(r.result); if(d.materials && d.products && d.days){ db = normalizeDb(d); save(); alert('导入完成'); } else alert('这个文件不对'); } catch(e){ alert('导入失败：文件打不开'); } };
   r.readAsText(f);
 }
-function clearAll(){ if(confirm('确定清空全部数据？建议先导出备份。')){ db = {materials:[], fillings:[], products:[], days:[]}; save(); } }
+function clearAll(){ if(confirm('确定清空全部数据？建议先导出备份。')){ db = {materials:[], fillings:[], doughs:[], products:[], days:[]}; save(); } }
 function loadDemo(){
   if(db.materials.length && !confirm('已有数据，载入示例会覆盖，继续？')) return;
   const m1={id:'dm1',name:'高筋面粉（示例）',price:68,qty:25000,unit:'克',note:''};
@@ -422,14 +520,17 @@ function loadDemo(){
   const m4={id:'dm4',name:'红豆（示例）',price:18,qty:1000,unit:'克',note:''};
   const f1={id:'df1',name:'红豆沙馅（示例）',outQty:800,outUnit:'克',ings:[{matId:'dm4',amount:500},{matId:'dm3',amount:150}]};
   const p1={id:'dp1',name:'原味吐司（示例）',yield:10,pack:0.5,price:12,margin:55,ings:[{matId:'dm1',amount:2500},{matId:'dm2',amount:200},{matId:'dm3',amount:250}],fillings:[]};
-  const p2={id:'dp2',name:'红豆包（示例）',yield:10,pack:0.3,price:6,margin:55,ings:[{matId:'dm1',amount:500},{matId:'dm3',amount:50}],fillings:[{fillingId:'df1',amount:300}]};
-  db = {materials:[m1,m2,m3,m4], fillings:[f1], products:[p1,p2], days:[{id:'dd1',date:new Date().toISOString().slice(0,10),pid:'dp1',made:20,sold:16,promo:2,promoPrice:8}]};
+  const dg1={id:'ddg1',name:'甜面包面团（示例）',outQty:1250,outUnit:'克',ings:[{matId:'dm1',amount:1000},{matId:'dm3',amount:100},{matId:'dm2',amount:80}]};
+  const p2={id:'dp2',name:'红豆包（示例）',yield:10,pack:0.3,price:6,margin:55,ings:[],fillings:[{fillingId:'df1',amount:300}],doughs:[{doughId:'ddg1',amount:500}]};
+  db = {materials:[m1,m2,m3,m4], fillings:[f1], doughs:[dg1], products:[p1,p2], days:[{id:'dd1',date:new Date().toISOString().slice(0,10),pid:'dp1',made:20,sold:16,promo:2,promoPrice:8}]};
   save();
 }
 document.getElementById('dDate').value = new Date().toISOString().slice(0,10);
 addIngRow();
 addFillingIngRow();
 addFillRow();
+addDoughIngRow();
+addDoughRow();
 render();
 </script>
 <script>

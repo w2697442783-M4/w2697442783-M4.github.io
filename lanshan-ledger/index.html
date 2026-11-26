@@ -122,6 +122,11 @@
 <div class="card">
   <h2><span class="no">2</span>馅料板块</h2>
   <p class="hint">馅料是先做好的半成品，比如红豆沙、芋泥、奶黄。先在这里按<b>原材料 + 配比</b>建好一锅馅：系统会算出一锅多少钱、每克多少钱。之后在产品成本卡里就能直接选这个馅，不用每次把馅里的原料再填一遍。</p>
+  <div style="border:1.5px dashed #d9b96a;border-radius:12px;padding:10px 11px;margin-bottom:12px;background:#fffdf4;">
+    <button class="ghost" onclick="document.getElementById('ocrFileF').click()">📷 拍照 / 上传配方图，自动识别</button>
+    <input type="file" id="ocrFileF" accept="image/*" style="display:none" onchange="ocrUpload(event,'filling')">
+    <p class="hint" style="margin:7px 0 0;" id="ocrStateF">拍一张配方表，识别完会自动填到下面，你检查一遍再保存。识别要先在最上面输入店铺口令进入账本。</p>
+  </div>
   <div class="row3">
     <div><label>馅料名</label><input id="fName" placeholder="如：红豆沙馅"></div>
     <div><label>一锅做好后有多少</label><input id="fOutQty" type="number" step="0.01" min="0" placeholder="800"></div>
@@ -137,6 +142,11 @@
 <div class="card">
   <h2><span class="no">3</span>面团板块</h2>
   <p class="hint">面团和馅料一样，也是先做好的半成品。先在这里按<b>原材料 + 配比</b>建好一款面团：系统会算出一批多少钱、每克多少钱。同一个面团换不同馅，就是不同产品 — 面团只建一次，后面组合就行。</p>
+  <div style="border:1.5px dashed #d9b96a;border-radius:12px;padding:10px 11px;margin-bottom:12px;background:#fffdf4;">
+    <button class="ghost" onclick="document.getElementById('ocrFileD').click()">📷 拍照 / 上传配方图，自动识别</button>
+    <input type="file" id="ocrFileD" accept="image/*" style="display:none" onchange="ocrUpload(event,'dough')">
+    <p class="hint" style="margin:7px 0 0;" id="ocrStateD">拍一张配方表，识别完会自动填到下面，你检查一遍再保存。识别要先在最上面输入店铺口令进入账本。</p>
+  </div>
   <div class="row3">
     <div><label>面团名</label><input id="dgName" placeholder="如：甜面包面团"></div>
     <div><label>一批做好后有多少</label><input id="dgOutQty" type="number" step="0.01" min="0" placeholder="1250"></div>
@@ -586,6 +596,74 @@ async function cloudPull(){
     setSync("云上还没有这个口令的账");
     return false;
   } catch(e){ setSync("拉取失败（先用本机这本，联网后点立即同步）"); return false; }
+}
+/* ---------- 配方图识别 ---------- */
+const OCR_ALIAS = {'高粉':'高筋面粉','低粉':'低筋面粉','中粉':'中筋面粉','细砂糖':'白砂糖','砂糖':'白砂糖','绵白糖':'白砂糖','酵母':'干酵母','即发干酵母':'干酵母','全蛋':'鸡蛋','蛋液':'鸡蛋','蛋':'鸡蛋'};
+function matchMaterial(name){
+  name = String(name||'').trim(); if(!name) return null;
+  let m = db.materials.find(x=>x.name===name); if(m) return m;
+  const alias = OCR_ALIAS[name];
+  if(alias){ m = db.materials.find(x=>x.name===alias); if(m) return m; }
+  m = db.materials.find(x=>x.name.includes(name) || name.includes(x.name)); if(m) return m;
+  if(alias) m = db.materials.find(x=>x.name.includes(alias) || alias.includes(x.name));
+  return m || null;
+}
+async function ocrUpload(ev, kind){
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  const stateEl = document.getElementById(kind==='filling' ? 'ocrStateF' : 'ocrStateD');
+  const setState = t => { if(stateEl) stateEl.textContent = t; };
+  if(!file) return;
+  if(!passHash){ alert('先在最上面输入店铺口令进入账本，再用拍照识别'); return; }
+  setState('正在识别…（大概十几秒）');
+  try {
+    const dataUrl = await downscaleImage(file);
+    const j = await workerCall('/ocr', { code: passHash, image: dataUrl, kind });
+    if(!j.ok) throw new Error(j.error || '识别失败');
+    ocrFillForm(kind, j, setState);
+  } catch(e){ setState('识别失败：' + (e.message || e) + '。照片拍正、光线亮一点再试，或者手动填。'); }
+}
+function downscaleImage(file){
+  return new Promise((resolve, reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      try {
+        const maxDim = 1600;
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      } catch(err){ reject(err); }
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('图片打不开')); };
+    img.src = url;
+  });
+}
+function ocrFillForm(kind, data, setState){
+  const isF = kind==='filling';
+  const nameEl = document.getElementById(isF ? 'fName' : 'dgName');
+  const outEl = document.getElementById(isF ? 'fOutQty' : 'dgOutQty');
+  const rowsEl = document.getElementById(isF ? 'fIngRows' : 'dgIngRows');
+  const addRow = isF ? addFillingIngRow : addDoughIngRow;
+  if(data.name) nameEl.value = data.name;
+  rowsEl.innerHTML = '';
+  let matched = 0; const unmatched = [];
+  (data.items||[]).forEach(it=>{
+    const m = matchMaterial(it.name);
+    if(m){ addRow(m.id, it.grams); matched++; }
+    else unmatched.push(it);
+  });
+  if(!rowsEl.children.length) addRow();
+  const total = (data.items||[]).reduce((sum,i)=>sum + (parseFloat(i.grams)||0), 0);
+  if(total > 0) outEl.value = Math.round(total*10)/10;
+  let msg = '识别完成' + (data.name ? '：' + data.name : '') + '，共 ' + (data.items||[]).length + ' 样，' + matched + ' 样已对上原材料库填好';
+  if(unmatched.length) msg += '；这 ' + unmatched.length + ' 样库里还没有：' + unmatched.map(u=>u.name + ' ' + u.grams + '克').join('、') + ' — 先去原材料库加上（价格照采购单填），再回来手动加行填克数';
+  if(data.uncertain && data.uncertain.length) msg += '；没看清的：' + data.uncertain.join('、') + '，自己对着原图核对';
+  msg += '。总量先按配料合计填了，做好后有损耗自己改。检查无误再点保存。';
+  setState(msg);
 }
 function schedulePush(){ if (!passHash) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 900); }
 async function pushNow(){

@@ -229,7 +229,7 @@ const KEY = 'lanshan_ledger_v1';
 let db = load();
 function normalizeDb(d){ d = d || {}; return { materials: d.materials || [], fillings: d.fillings || [], doughs: d.doughs || [], products: (d.products || []).map(p=>Object.assign({fillings:[], doughs:[]}, p)), days: d.days || [] }; }
 function load(){ try { return normalizeDb(JSON.parse(localStorage.getItem(KEY))); } catch(e){ return normalizeDb(null); } }
-function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); if(window.schedulePush) schedulePush(); }
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); if(window.markDirty) markDirty(); if(window.schedulePush) schedulePush(); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function money(n){ return '¥' + (Math.round(n*100)/100).toLocaleString('zh-CN'); }
 function matById(id){ return db.materials.find(m=>m.id===id); }
@@ -549,6 +549,11 @@ const WORKER_URL = "https://lanshan-ledger.w2697442783.workers.dev"; /* 形如 h
 const PASS_KEY = "lanshan_passhash_v1";
 let passHash = localStorage.getItem(PASS_KEY) || null;
 let lcDocId = null, pushTimer = null, pushing = false, pushQueued = false;
+const TS_KEY = "lanshan_local_ts_v1", DIRTY_KEY = "lanshan_dirty_v1";
+let localUpdatedAt = parseInt(localStorage.getItem(TS_KEY) || "0", 10) || 0;
+let dirty = localStorage.getItem(DIRTY_KEY) === "1";
+function markDirty(){ localUpdatedAt = Date.now(); localStorage.setItem(TS_KEY, String(localUpdatedAt)); dirty = true; localStorage.setItem(DIRTY_KEY, "1"); }
+function markClean(serverTs){ if (serverTs) { localUpdatedAt = serverTs; localStorage.setItem(TS_KEY, String(serverTs)); } dirty = false; localStorage.removeItem(DIRTY_KEY); }
 
 async function sha256hex(text){
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -585,17 +590,25 @@ async function cloudPull(){
   try {
     const j = await workerCall("/pull", { code: passHash });
     if (j.found && j.payload && j.payload.data){
+      const cloudTs = Date.parse(j.payload.updatedAt || "") || 0;
+      if (dirty && localUpdatedAt > cloudTs){
+        // 本机有还没传上去的新改动：先上传，不让云上的旧账覆盖
+        setSync("本机有新改动，正在上传…");
+        await pushNow();
+        return true;
+      }
       const d = j.payload.data;
       if (d.materials || d.products || d.days){
         db = normalizeDb(d);
         localStorage.setItem(KEY, JSON.stringify(db)); render();
       }
+      markClean(cloudTs || localUpdatedAt);
       setSync("已同步 ☁️ " + new Date().toLocaleTimeString());
       return true;
     }
     setSync("云上还没有这个口令的账");
     return false;
-  } catch(e){ setSync("拉取失败（先用本机这本，联网后点立即同步）"); return false; }
+  } catch(e){ setSync("暂时连不上云（先用本机这本，联网后自动同步）"); return false; }
 }
 /* ---------- 配方图识别 ---------- */
 const OCR_ALIAS = {'高粉':'高筋面粉','低粉':'低筋面粉','中粉':'中筋面粉','细砂糖':'白砂糖','砂糖':'白砂糖','绵白糖':'白砂糖','酵母':'干酵母','即发干酵母':'干酵母','全蛋':'鸡蛋','蛋液':'鸡蛋','蛋':'鸡蛋'};
@@ -671,16 +684,25 @@ async function pushNow(){
   if (pushing) { pushQueued = true; return; }
   pushing = true; setSync("同步中…");
   try {
-    await workerCall("/push", { code: passHash, data: db });
+    const j = await workerCall("/push", { code: passHash, data: db });
+    markClean(j && j.updatedAt ? (Date.parse(j.updatedAt) || Date.now()) : Date.now());
     setSync("已同步 ☁️ " + new Date().toLocaleTimeString());
-  } catch(e){ setSync("同步失败，已存在本机，联网后点“立即同步”"); }
+  } catch(e){ setSync("同步失败，已存在本机，会自动重试（不用管）"); }
   pushing = false;
   if (pushQueued) { pushQueued = false; schedulePush(); }
 }
-async function cloudSyncNow(){ if (!passHash) return alert("还没输入口令"); await cloudPull(); await pushNow(); }
+async function cloudSyncNow(){ if (!passHash) return alert("还没输入口令"); await syncSmart(); }
+async function syncSmart(){
+  if (!passHash) return;
+  if (dirty) { await pushNow(); }
+  else { await cloudPull(); }
+}
+window.addEventListener("online", ()=>{ syncSmart(); });
+document.addEventListener("visibilitychange", ()=>{ if (!document.hidden) syncSmart(); });
+setInterval(()=>{ if (!document.hidden) syncSmart(); }, 60000);
 (async function(){
   showAuthState();
-  if (passHash) await cloudPull();
+  if (passHash) await syncSmart();
 })();
 </script>
 
